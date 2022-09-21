@@ -1,7 +1,7 @@
 #import "Tweak.h"
 
 //Global
-static double mediaPlayerHeight = 215;
+static double mediaPlayerHeight = 175;
 //static double cornerRadius = 27; //Default 13
 
 //Controls
@@ -9,7 +9,7 @@ static double mediaControlsOriginX = 100;
 static double mediaControlsOriginY = 60;
 static double mediaControlsHeight = 40;
 
-static double volumeControlOriginY = 150;
+// static double volumeControlOriginY = 150;
 
 //Corner Radius
 // %hook MTMaterialView
@@ -109,15 +109,25 @@ static double volumeControlOriginY = 150;
 %end
 
 //Volume Slider
-%hook MRUNowPlayingVolumeControlsView
+// %hook MRUNowPlayingVolumeControlsView
 
-	- (void)setFrame: (CGRect)frame
-	{
+// 	- (void)setFrame: (CGRect)frame
+// 	{
+// 		//Only make changes for the lockscreen player by checking for parent view controller
+// 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
+// 			frame.origin.y = volumeControlOriginY;
+
+// 		%orig;
+// 	}
+
+// %end
+
+%hook MRUNowPlayingControlsView
+	-(void)setNeedsLayout{
 		//Only make changes for the lockscreen player by checking for parent view controller
+		//Thanks to P2KDev
 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			frame.origin.y = volumeControlOriginY;
-
+			[self.volumeControlsView setHidden:YES];
 		%orig;
 	}
-
 %end
