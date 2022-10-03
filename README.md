@@ -18,7 +18,7 @@ Very small music widget
 ## License
 [MIT](https://github.com/karin722/Printemps/blob/main/LICENSE)
 
-## Author
+## Contact
 - [Twitter](https://twitter.com/tako3s)
 
 ## Credits
