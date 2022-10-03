@@ -1,6 +1,28 @@
-# TinyWidget14
-Tiny Music Player Widget for iOS14
+<div align="center">
+<img src="icon.png" alt="icon" width="30%" height="auto" />
 
-Makes the Now playing view on lock screen space efficient! Works with Music, Podcasts & Airplay Controls.
+# Printemps
 
-Download at https://repo.packix.com/package/com.p2kdev.tinywidget14/
+</div>
+
+Very small music widget
+
+## Preview
+<img src="Preview.png" alt="Preview" width="60%" height="auto" />
+
+## Install
+
+- `make package`
+
+
+## License
+[MIT](https://github.com/karin722/Printemps/blob/main/LICENSE)
+
+## Author
+- [Twitter](https://twitter.com/tako3s)
+
+## Credits
+- Original
+  - [TinyWidget14](https://github.com/p2kdev/TinyWidget14) under [MIT license](https://github.com/p2kdev/TinyWidget14/blob/main/LICENSE)
+- Icon
+  - [ikonate](https://github.com/mikolajdobrucki/ikonate) under [MIT license](https://github.com/mikolajdobrucki/ikonate/blob/master/LICENSE)

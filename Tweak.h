@@ -1,58 +1,14 @@
-@interface SBApplication : NSObject
-@end
-
-@interface UILabel ()
-- (UIColor*)customTextColor;
-- (void)setCustomTextColor:(UIColor*)arg;
-@end
-
-@interface UIImageView ()
-- (UIColor *)customTintColor;
-- (void)setCustomTintColor:(UIColor *)arg;
-@end
-
-@interface CAShapeLayer ()
-- (UIColor*)customStrokeColor;
-- (void)setCustomStrokeColor:(UIColor*)arg;
-@end
-
-@interface SBMediaController: NSObject
-+ (id)sharedInstance;
-- (SBApplication*)nowPlayingApplication;
-- (id)_nowPlayingInfo;
-@end
+#import <UIKit/UIKit.h>
 
 @interface UIView ()
 - (id)_viewControllerForAncestor;
-- (UIColor *)customBackgroundColor;
-- (void)setCustomBackgroundColor:(UIColor *)arg;
-- (id)_rootView;
-@end
-
-@interface CALayer (Undocumented)
-	@property (assign) BOOL continuousCorners;
-@end
-
-@interface MTMaterialLayer : CALayer
-@end
-
-@interface MTMaterialView: UIView
-  -(id)_materialLayer;
-@end
-
-@interface MediaControlsMaterialView : UIView
-@end
-
-@interface PLPlatterView : UIView
 @end
 
 @interface MRUCoverSheetViewController : UIViewController
 @end
 
 @interface MRUNowPlayingLabelView : UIView
-@end
-
-@interface MRUNowPlayingRoutingButton : UIView
+@property (nonatomic, assign) NSInteger context;
 @end
 
 @interface MRUNowPlayingVolumeControlsView : UIView
@@ -62,9 +18,26 @@
 @end
 
 @interface MRUNowPlayingTransportControlsView : UIView
-	@property (nonatomic,retain) MRUTransportButton * languageOptionsButton;
+@property (nonatomic, assign) NSInteger layout;
+@property (nonatomic,retain) MRUTransportButton * leftButton;
 @end
 
 @interface MRUNowPlayingControlsView : UIView
-	@property (nonatomic, retain) MRUNowPlayingVolumeControlsView *volumeControlsView;
+@property (nonatomic, assign) NSInteger context;
+@property (nonatomic, retain) MRUNowPlayingVolumeControlsView *volumeControlsView;
+@end
+
+@interface MRUArtworkView : UIView
+@property (nonatomic, assign) NSInteger style;
+@end
+
+@interface MRUNowPlayingHeaderView : UIView
+@property (nonatomic, assign) NSInteger context;
+@end
+
+@interface MRUNowPlayingTimeControlsView : UIView
+@property (nonatomic, assign) NSInteger context;
+@property (nonatomic,retain) UILabel * elapsedTimeLabel;
+@property (nonatomic,retain) UILabel * remainingTimeLabel;
+@property (nonatomic,retain) UIView * knobView;
 @end

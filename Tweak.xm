@@ -1,39 +1,15 @@
 #import "Tweak.h"
 
 //Global
-static double mediaPlayerHeight = 175;
-//static double cornerRadius = 27; //Default 13
+static double mediaPlayerHeight;
+static double orgPlayerWidth;
 
 //Controls
-static double mediaControlsOriginX = 100;
-static double mediaControlsOriginY = 60;
-static double mediaControlsHeight = 40;
+static double mediaControlsOriginY = 21; //N21 Debug 60
+static double mediaControlsHeight = 25; //N25
 
-// static double volumeControlOriginY = 150;
-
-//Corner Radius
-// %hook MTMaterialView
-// 	- (void)layoutSubviews
-// 	{
-// 		%orig;
-// 		MTMaterialLayer *orig = [self _materialLayer];
-//
-// 		//Player
-// 		if ([self.superview class] == objc_getClass("PLPlatterView"))
-// 		{
-// 			orig.cornerRadius = cornerRadius;
-// 			//Thanks @bengiannis
-// 			if (@available(iOS 13.0, *))
-// 			    orig.cornerCurve = kCACornerCurveContinuous;
-// 			else
-// 				orig.continuousCorners = YES;
-//
-// 			orig.masksToBounds = YES;
-// 		}
-//
-// 	}
-// %end
-
+//Settings
+NSUserDefaults *settings = [[NSUserDefaults alloc] initWithSuiteName:@"com.tako3s.PrintempsPrefs"];
 
 //Player Height
 %hook CSMediaControlsViewController
@@ -41,7 +17,13 @@ static double mediaControlsHeight = 40;
 	- (CGRect)_suggestedFrameForMediaControls
 	{
 		CGRect frame = %orig;
+		if ([settings boolForKey:@"showKnob"]) {
+			mediaPlayerHeight = 117;
+		} else {
+			mediaPlayerHeight = 118; //N119 Debug 150
+		}
 		frame.size.height = mediaPlayerHeight;
+		orgPlayerWidth = frame.size.width;
 
 		return frame;
 	}
@@ -54,22 +36,16 @@ static double mediaControlsHeight = 40;
 	- (void)setFrame: (CGRect)frame
 	{
 		//Only make changes for the lockscreen player by checking for parent view controller
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			frame.origin.y = 0;
-		%orig;
-	}
-
-%end
-
-//Route Button
-%hook MRUNowPlayingRoutingButton
-
-	- (void)setFrame: (CGRect)frame
-	{
-		//Only make changes for the lockscreen player by checking for parent view controller
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			frame.origin.y = 0;
-
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		if(self.context == 2) {
+			frame.origin.y = mediaControlsOriginY - 13;
+			frame.origin.x = 80;
+			if ([settings boolForKey:@"hidePrevious"]) {
+				frame.size.width = orgPlayerWidth - 170; //N170
+			} else {
+				frame.size.width = orgPlayerWidth - 200; //N200
+			}
+		}
 		%orig;
 	}
 
@@ -80,27 +56,20 @@ static double mediaControlsHeight = 40;
 
 	- (void)setFrame: (CGRect)frame
 	{
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
+		// 4 -> LS
+		// 0 -> CC
+		if(self.layout == 4)
 		{
-			//Apple added constraints to the player control's, so we need to remove them before we can make any changes
-			//Thanks to https://github.com/MDausch/LatchKey/blob/d898fee4a4670b0186118ffa59899c2fd1f4e71d/LatchKey.xm#L153		
-			UIView *super = self.superview;
-			while (super != nil) {
-				for (NSLayoutConstraint *c in super.constraints) {
-					if (c.firstItem == self || c.secondItem == self) {
-						[super removeConstraint:c];
-					}
-				}
-				super = super.superview;
+			if ([settings boolForKey:@"hidePrevious"]) {
+				[self.leftButton removeFromSuperview];
 			}
 
 			//Remove all the constraints our object holds
-			[self removeConstraints:self.constraints];
-			self.translatesAutoresizingMaskIntoConstraints = YES;
+			self.translatesAutoresizingMaskIntoConstraints = NO;
 
-			frame.origin.x = mediaControlsOriginX;
+			frame.origin.x = orgPlayerWidth - 125.5;
 			frame.origin.y = mediaControlsOriginY;
-			frame.size.width = frame.size.width - mediaControlsOriginX;
+			frame.size.width = 100;
 			frame.size.height = mediaControlsHeight;
 		}
 		%orig;
@@ -108,26 +77,73 @@ static double mediaControlsHeight = 40;
 
 %end
 
+//Artwork
+%hook MRUArtworkView
+
+	- (void)setFrame: (CGRect)frame
+	{
+		// 0 -> CC
+		// 1 -> LS
+		if(self.style == 1){
+			frame.size.width = 70;
+			frame.size.height = 70;
+		}
+		%orig;
+	} 
+
+%end
+
 //Volume Slider
-// %hook MRUNowPlayingVolumeControlsView
-
-// 	- (void)setFrame: (CGRect)frame
-// 	{
-// 		//Only make changes for the lockscreen player by checking for parent view controller
-// 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-// 			frame.origin.y = volumeControlOriginY;
-
-// 		%orig;
-// 	}
-
-// %end
-
 %hook MRUNowPlayingControlsView
-	-(void)setNeedsLayout{
+
+	- (void)setNeedsLayout
+	{
 		//Only make changes for the lockscreen player by checking for parent view controller
-		//Thanks to P2KDev
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			[self.volumeControlsView setHidden:YES];
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		if(self.context == 2)
+			[self.volumeControlsView removeFromSuperview];
+		%orig;
+	}
+%end
+
+//Airplay Icon
+%hook MRUNowPlayingHeaderView
+
+	-(void)setShowRoutingButton:(BOOL)arg1{
+		//Only make changes for the lockscreen player by checking for parent view controller
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		if(self.context == 2){
+			return %orig(NO);
+		}
+		return %orig;
+	}
+%end
+
+//Time Bar
+%hook MRUNowPlayingTimeControlsView
+
+	- (void)setFrame: (CGRect)frame
+	{
+		//Only make changes for the lockscreen player by checking for parent view controller
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		if(self.context == 2){
+			frame.origin.y = 60;
+		}
+		%orig;
+	}
+
+	-(void)updateVisibility
+	{
+		//Only make changes for the lockscreen player by checking for parent view controller
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		if(self.context == 2){
+			[self.elapsedTimeLabel removeFromSuperview];
+			[self.remainingTimeLabel removeFromSuperview];
+			
+			if ([settings boolForKey:@"showKnob"]) {
+				[self.knobView removeFromSuperview];
+			}
+		}
 		%orig;
 	}
 %end
