@@ -9,6 +9,7 @@
 
 @interface MRUNowPlayingLabelView : UIView
 @property (nonatomic, assign) NSInteger context;
+@property (nonatomic, assign) NSInteger tp_userInterfaceLayoutDirection;
 @end
 
 @interface MRUNowPlayingVolumeControlsView : UIView
@@ -19,6 +20,7 @@
 
 @interface MRUNowPlayingTransportControlsView : UIView
 @property (nonatomic, assign) NSInteger layout;
+@property (nonatomic, assign) NSInteger tp_userInterfaceLayoutDirection;
 @property (nonatomic,retain) MRUTransportButton * leftButton;
 @end
 
@@ -29,6 +31,7 @@
 
 @interface MRUArtworkView : UIView
 @property (nonatomic, assign) NSInteger style;
+@property (nonatomic, assign) NSInteger tp_userInterfaceLayoutDirection;
 @end
 
 @interface MRUNowPlayingHeaderView : UIView

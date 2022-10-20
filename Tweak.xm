@@ -39,11 +39,22 @@ NSUserDefaults *settings = [[NSUserDefaults alloc] initWithSuiteName:@"com.tako3
 		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
 		if(self.context == 2) {
 			frame.origin.y = mediaControlsOriginY - 13;
-			frame.origin.x = 80;
 			if ([settings boolForKey:@"hidePrevious"]) {
-				frame.size.width = orgPlayerWidth - 170; //N170
+				if (self.tp_userInterfaceLayoutDirection == 1) {
+					frame.origin.x = 58;
+					frame.size.width = orgPlayerWidth - 170;
+				} else {
+					frame.origin.x = 80;
+					frame.size.width = orgPlayerWidth - 170;
+				}
 			} else {
-				frame.size.width = orgPlayerWidth - 200; //N200
+				if (self.tp_userInterfaceLayoutDirection == 1) {
+					frame.origin.x = 90;
+					frame.size.width = orgPlayerWidth - 200;
+				} else {
+					frame.origin.x = 80;
+					frame.size.width = orgPlayerWidth - 200;
+				}
 			}
 		}
 		%orig;
@@ -67,7 +78,15 @@ NSUserDefaults *settings = [[NSUserDefaults alloc] initWithSuiteName:@"com.tako3
 			//Remove all the constraints our object holds
 			self.translatesAutoresizingMaskIntoConstraints = NO;
 
-			frame.origin.x = orgPlayerWidth - 125.5;
+			if (self.tp_userInterfaceLayoutDirection == 1) {
+				if ([settings boolForKey:@"hidePrevious"]) {
+					frame.origin.x = -42;
+				} else {
+					frame.origin.x = -6.5;
+				}
+			} else {
+				frame.origin.x = orgPlayerWidth - 125.5;
+			}
 			frame.origin.y = mediaControlsOriginY;
 			frame.size.width = 100;
 			frame.size.height = mediaControlsHeight;
@@ -87,6 +106,9 @@ NSUserDefaults *settings = [[NSUserDefaults alloc] initWithSuiteName:@"com.tako3
 		if(self.style == 1){
 			frame.size.width = 70;
 			frame.size.height = 70;
+			if (self.tp_userInterfaceLayoutDirection == 1) {
+				frame.origin.x = orgPlayerWidth - 102;
+			}
 		}
 		%orig;
 	} 
