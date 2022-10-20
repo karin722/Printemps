@@ -2,7 +2,7 @@ Package: com.tako3s.printemps
 Name: Printemps
 Depends: mobilesubstrate, firmware (>= 14.2)
 Conflicts: ch.mdaus.utils, com.johnzaro.perfectmusic13, com.p2kdev.tinywidget, com.p2kdev.tinywidget14
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm
 Description: Very small music widget
 Maintainer: tako3s <fubdonstrk@gmail.com>
