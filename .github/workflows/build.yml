@@ -30,6 +30,8 @@ jobs:
         uses: Randomblock1/theos-action@v1.3
 
       - name: Build package
+        env:
+          THEOS: ${{ github.workspace }}/theos
         run: |
           rm -f packages/*
           make package FINALPACKAGE=1
