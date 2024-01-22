@@ -28,12 +28,12 @@ jobs:
       - name: Prepare Theos
         uses: Randomblock1/theos-action@v1.3
         with:
-          path: ${{ github.workspace }}
           orion: "true"
 
       - name: Build package
         run: |
           rm -f packages/*
+          THEOS=/Users/runner/work/Printemps/Printemps/theos
           make package FINALPACKAGE=1
 
       - name: Upload package
