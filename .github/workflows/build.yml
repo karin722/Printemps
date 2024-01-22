@@ -28,6 +28,7 @@ jobs:
       - name: Prepare Theos
         uses: Randomblock1/theos-action@v1.3
         with:
+          path: ${{ github.workspace }}
           orion: "true"
 
       - name: Build package
