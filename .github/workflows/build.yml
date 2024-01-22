@@ -27,11 +27,9 @@ jobs:
 
       - name: Prepare Theos
         # Don't use @main in production, this repo is specifically for testing it.
-        uses: Randomblock1/theos-action@v1.3
+        uses: Randomblock1/theos-action@main
 
       - name: Build package
-        env:
-          THEOS: ${{ github.workspace }}/theos
         run: |
           rm -f packages/*
           make package FINALPACKAGE=1

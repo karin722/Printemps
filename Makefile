@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-THEOS=${HOME}/theos
+# THEOS=${HOME}/theos
 PACKAGE_VERSION=$(THEOS_PACKAGE_BASE_VERSION)
 
 include $(THEOS)/makefiles/common.mk
