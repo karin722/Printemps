@@ -21,7 +21,7 @@ $(TWEAK_NAME)_FRAMEWORKS = UIKit
 $(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wc++11-extensions -std=c++11
 
 # rootless
-THEOS_PACKAGE_SCHEME = rootless
+# THEOS_PACKAGE_SCHEME = rootless
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 
