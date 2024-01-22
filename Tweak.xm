@@ -1,13 +1,13 @@
 #import "Tweak.h"
 
 //Global
-static double mediaPlayerHeight = 170;
-//static double cornerRadius = 27; //Default 13
+// static double mediaPlayerHeight = 170;
+// //static double cornerRadius = 27; //Default 13
 
-//Controls
-static double mediaControlsOriginX = 100;
-static double mediaControlsOriginY = 60;
-static double mediaControlsHeight = 40;
+// //Controls
+// static double mediaControlsOriginX = 100;
+// static double mediaControlsOriginY = 60;
+// static double mediaControlsHeight = 40;
 
 //static double volumeControlOriginY = 150;
 
