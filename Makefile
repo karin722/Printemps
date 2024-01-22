@@ -15,7 +15,7 @@ export TARGET = iphone:clang:14.5:15.6
 # export TARGET = simulator:clang::13.0
 # export ARCHS = x86_64
 
-TWEAK_NAME = Printemps
+TWEAK_NAME = TinyWidget14
 $(TWEAK_NAME)_FILES = Tweak.xm
 $(TWEAK_NAME)_FRAMEWORKS = UIKit
 $(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wc++11-extensions -std=c++11
