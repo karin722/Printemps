@@ -18,13 +18,10 @@ export TARGET = iphone:clang:14.5:15.6
 TWEAK_NAME = Printemps
 $(TWEAK_NAME)_FILES = Tweak.xm
 $(TWEAK_NAME)_FRAMEWORKS = UIKit
-$(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+$(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wc++11-extensions -std=c++11
 
 # rootless
 THEOS_PACKAGE_SCHEME = rootless
-
-# make github action
-$(TWEAK_NAME)_CCFLAGS = -Wc++11-extensions -std=c++11
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 
