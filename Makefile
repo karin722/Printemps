@@ -5,7 +5,7 @@ PACKAGE_VERSION=$(THEOS_PACKAGE_BASE_VERSION)
 include $(THEOS)/makefiles/common.mk
 
 export ARCHS = arm64 arm64e
-export TARGET = iphone:clang:14.5:14.0
+export TARGET = iphone:clang:14.5:15.6
 
 # SSH
 # THEOS_DEVICE_IP = localhost
@@ -19,6 +19,12 @@ TWEAK_NAME = Printemps
 $(TWEAK_NAME)_FILES = Tweak.xm
 $(TWEAK_NAME)_FRAMEWORKS = UIKit
 $(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+
+# rootless
+THEOS_PACKAGE_SCHEME = rootless
+
+# make github action
+$(TWEAK_NAME)_CCFLAGS = -Wc++11-extensions -std=c++11
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 
