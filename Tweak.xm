@@ -36,102 +36,102 @@ static double mediaControlsHeight = 40;
 
 
 //Player Height
-%hook CSMediaControlsViewController
+// %hook CSMediaControlsViewController
 
-	- (CGRect)_suggestedFrameForMediaControls
-	{
-		CGRect frame = %orig;
-		frame.size.height = mediaPlayerHeight;
+// 	- (CGRect)_suggestedFrameForMediaControls
+// 	{
+// 		CGRect frame = %orig;
+// 		frame.size.height = mediaPlayerHeight;
 
-		return frame;
-	}
+// 		return frame;
+// 	}
 
-	-(double)_preferredMediaRemoteHeight
-	{
-		return mediaPlayerHeight;
-	}
+// 	-(double)_preferredMediaRemoteHeight
+// 	{
+// 		return mediaPlayerHeight;
+// 	}
 
-%end
+// %end
 
-%hook MRUNowPlayingView
+// %hook MRUNowPlayingView
 
-	-(void)setContext:(NSInteger)context {
-		%orig;
-		if(context == 2) {
-			self.controlsView.volumeControlsView.hidden = YES;
-		}		
-	}	
+// 	-(void)setContext:(NSInteger)context {
+// 		%orig;
+// 		if(context == 2) {
+// 			self.controlsView.volumeControlsView.hidden = YES;
+// 		}		
+// 	}	
 
-%end
+// %end
 
-//Suggestions
-%hook MRUNowPlayingLabelView
+// //Suggestions
+// %hook MRUNowPlayingLabelView
 
-	- (void)setShowSuggestionsView:(BOOL)arg1 {
-		%orig(NO);
-	}
+// 	- (void)setShowSuggestionsView:(BOOL)arg1 {
+// 		%orig(NO);
+// 	}
 
-%end
+// %end
 
 //Header Labels
-%hook MRUNowPlayingLabelView
+// %hook MRUNowPlayingLabelView
 
-	- (void)setFrame: (CGRect)frame
-	{
-		//Only make changes for the lockscreen player by checking for parent view controller
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			frame.origin.y = 0;
-		%orig;
-	}
+// 	- (void)setFrame: (CGRect)frame
+// 	{
+// 		//Only make changes for the lockscreen player by checking for parent view controller
+// 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
+// 			frame.origin.y = 0;
+// 		%orig;
+// 	}
 
-%end
+// %end
 
 //Route Button
-%hook MRUNowPlayingRoutingButton
+// %hook MRUNowPlayingRoutingButton
 
-	- (void)setFrame: (CGRect)frame
-	{
-		//Only make changes for the lockscreen player by checking for parent view controller
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-			frame.origin.y = 0;
+// 	- (void)setFrame: (CGRect)frame
+// 	{
+// 		//Only make changes for the lockscreen player by checking for parent view controller
+// 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
+// 			frame.origin.y = 0;
 
-		%orig;
-	}
+// 		%orig;
+// 	}
 
-%end
+// %end
 
 //Media Controls
-%hook MRUNowPlayingTransportControlsView
+// %hook MRUNowPlayingTransportControlsView
 
-	- (void)setFrame: (CGRect)frame
-	{
-		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
-		{
-			//Apple added constraints to the player control's, so we need to remove them before we can make any changes
-			//Thanks to https://github.com/MDausch/LatchKey/blob/d898fee4a4670b0186118ffa59899c2fd1f4e71d/LatchKey.xm#L153		
-			UIView *super = self.superview;
-			while (super != nil) {
-				for (NSLayoutConstraint *c in super.constraints) {
-					if (c.firstItem == self || c.secondItem == self) {
-						[super removeConstraint:c];
-					}
-				}
-				super = super.superview;
-			}
+// 	- (void)setFrame: (CGRect)frame
+// 	{
+// 		if([[[self _viewControllerForAncestor] parentViewController] isKindOfClass: %c(MRUCoverSheetViewController)])
+// 		{
+// 			//Apple added constraints to the player control's, so we need to remove them before we can make any changes
+// 			//Thanks to https://github.com/MDausch/LatchKey/blob/d898fee4a4670b0186118ffa59899c2fd1f4e71d/LatchKey.xm#L153		
+// 			UIView *super = self.superview;
+// 			while (super != nil) {
+// 				for (NSLayoutConstraint *c in super.constraints) {
+// 					if (c.firstItem == self || c.secondItem == self) {
+// 						[super removeConstraint:c];
+// 					}
+// 				}
+// 				super = super.superview;
+// 			}
 
-			//Remove all the constraints our object holds
-			[self removeConstraints:self.constraints];
-			self.translatesAutoresizingMaskIntoConstraints = YES;
+// 			//Remove all the constraints our object holds
+// 			[self removeConstraints:self.constraints];
+// 			self.translatesAutoresizingMaskIntoConstraints = YES;
 
-			frame.origin.x = mediaControlsOriginX;
-			frame.origin.y = mediaControlsOriginY;
-			frame.size.width = frame.size.width - mediaControlsOriginX;
-			frame.size.height = mediaControlsHeight;
-		}
-		%orig;
-	}
+// 			frame.origin.x = mediaControlsOriginX;
+// 			frame.origin.y = mediaControlsOriginY;
+// 			frame.size.width = frame.size.width - mediaControlsOriginX;
+// 			frame.size.height = mediaControlsHeight;
+// 		}
+// 		%orig;
+// 	}
 
-%end
+// %end
 
 //Volume Slider
 // %hook MRUNowPlayingVolumeControlsView
@@ -146,3 +146,12 @@ static double mediaControlsHeight = 40;
 // 	}
 
 // %end
+
+%hook MRUNowPlayingHeaderView
+
+	-(void)setShowRoutingButton:(BOOL)arg1{
+		//Only make changes for the lockscreen player by checking for parent view controller
+		//Thanks to https://github.com/MrGcGamer/Loli/blob/9379ff30f985f8faae277269414a48357a32c544/Sources/Layout.x
+		return %orig(NO);
+	}
+%end
