@@ -1,4 +1,4 @@
-name: CI
+name: build
 
 on: [push]
 
@@ -26,8 +26,9 @@ jobs:
           key: ${{ runner.os }}-${{ env.upstream_heads }}
 
       - name: Prepare Theos
-        # Don't use @main in production, this repo is specifically for testing it.
         uses: Randomblock1/theos-action@v1.3
+        with:
+          orion: "true"
 
       - name: Build package
         run: |
@@ -38,4 +39,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: "Package built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
+          path: ${{ github.workspace }}/packages/*-arm64.deb
