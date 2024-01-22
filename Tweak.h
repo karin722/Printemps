@@ -75,3 +75,7 @@
 @interface MRUNowPlayingView : UIView
 	@property (strong, nonatomic) MRUNowPlayingControlsView *controlsView;
 @end
+
+@interface MRUNowPlayingHeaderView : UIView
+@property (nonatomic, assign) NSInteger context;
+@end
