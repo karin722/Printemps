@@ -71,3 +71,8 @@
 @property (nonatomic, readonly) MRUNowPlayingTransportControlsView *transportControlsView;
 @property (nonatomic, readonly) UIView *volumeControlsView;
 @end
+
+@interface MRUNowPlayingViewController : UIViewController
+@property (nonatomic, assign) NSInteger context;
+@property (nonatomic, assign) NSInteger layout;
+@end
