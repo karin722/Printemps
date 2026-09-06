@@ -327,8 +327,8 @@ static const void *kPrintempsPlayerKey = &kPrintempsPlayerKey;
 // only member of this group.
 static NSString * const kNowPlayingActivityIdentifier = @"com.apple.MediaRemoteUI";
 
-static const CGFloat kPlayerSideInset = 16.0;
-static const CGFloat kPlayerVerticalInset = 12.0;
+// The same inset all the way round, so the card hugs the player evenly.
+static const CGFloat kPlayerInset = 16.0;
 
 // Reads an ivar without KVC, which would throw on a firmware that renamed it.
 static id PrintempsIvarValue(id object, const char *name)
@@ -385,25 +385,24 @@ static BOOL PrintempsIsNowPlayingActivity(UIView *view)
 
 		CGRect bounds = self.bounds;
 		CGFloat height = PrintempsPlayerView.preferredHeight;
-		player.frame = CGRectMake(kPlayerSideInset, (CGRectGetHeight(bounds) - height) / 2.0,
-			CGRectGetWidth(bounds) - 2.0 * kPlayerSideInset, height);
+		player.frame = CGRectMake(kPlayerInset, (CGRectGetHeight(bounds) - height) / 2.0,
+			CGRectGetWidth(bounds) - 2.0 * kPlayerInset, height);
 		[self bringSubviewToFront:player];
 
+		// The card is as tall as the stock widget asked for, which leaves the
+		// player floating in it. The item takes its size from the controller
+		// behind `_sizeProvider`, and setting it there is what tells the
+		// notification list to lay the card out again.
+		id provider = PrintempsIvarValue(self, "_sizeProvider");
+		if ([provider isKindOfClass:UIViewController.class]) {
+			UIViewController *controller = (UIViewController *)provider;
+			CGSize wanted = CGSizeMake(CGRectGetWidth(bounds), height + 2.0 * kPlayerInset);
+			if (!CGSizeEqualToSize(controller.preferredContentSize, wanted)) {
+				controller.preferredContentSize = wanted;
+			}
+		}
+
 		PrintempsLog(@"took over %@ with %@", NSStringFromCGRect(bounds), NSStringFromCGRect(player.frame));
-	}
-
-	// The platter is as tall as the stock widget asked for, which leaves the
-	// player floating in an empty card. This is what the whole chain above sizes
-	// itself from.
-	- (CGSize)sizeThatFits: (CGSize)size
-	{
-		CGSize fitted = %orig;
-
-		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
-		if (player.hidden || !player.hasContent) return fitted;
-
-		fitted.height = PrintempsPlayerView.preferredHeight + 2.0 * kPlayerVerticalInset;
-		return fitted;
 	}
 
 %end

@@ -38,24 +38,45 @@ static NSString *PrintempsInfoKey(const char *symbol)
 	return value == NULL ? @(symbol) : *value;
 }
 
+#pragma mark - Labels
+
+// The stock player scrolls long titles with this, so Printemps uses the same
+// thing rather than reimplementing it. UILabel stands in if it ever goes away.
+@protocol PrintempsTextView <NSObject>
+@property (nonatomic, copy) NSString *text;
+@property (nonatomic, retain) UIFont *font;
+@property (nonatomic, retain) UIColor *textColor;
+@property (nonatomic, assign) NSTextAlignment textAlignment;
+@end
+
+@interface MRUMarqueeLabel : UIView <PrintempsTextView>
+@property (nonatomic, assign, getter=isMarqueeEnabled) BOOL marqueeEnabled;
+@end
+
+@interface UILabel (PrintempsTextView) <PrintempsTextView>
+@end
+
+@implementation UILabel (PrintempsTextView)
+@end
+
 #pragma mark - Metrics
 
-static const CGFloat kPlayerHeight = 90.0;
+static const CGFloat kProgressHeight = 3.0;
+static const CGFloat kProgressTopGap = 6.0;
 static const CGFloat kArtworkSize = 70.0;
+static const CGFloat kPlayerHeight = kArtworkSize + kProgressTopGap + kProgressHeight;
 static const CGFloat kArtworkCornerRadius = 4.0;
 static const CGFloat kContentSpacing = 12.0;
 static const CGFloat kTransportButtonSize = 28.0;
 static const CGFloat kTransportSpacing = 8.0;
 static const CGFloat kTitleHeight = 20.0;
 static const CGFloat kSubtitleHeight = 18.0;
-static const CGFloat kProgressHeight = 3.0;
-static const CGFloat kProgressBottomInset = 8.0;
 
 @interface PrintempsPlayerView ()
 
 @property (nonatomic, retain) UIImageView *artworkView;
-@property (nonatomic, retain) UILabel *titleLabel;
-@property (nonatomic, retain) UILabel *subtitleLabel;
+@property (nonatomic, retain) UIView<PrintempsTextView> *titleLabel;
+@property (nonatomic, retain) UIView<PrintempsTextView> *subtitleLabel;
 @property (nonatomic, retain) UIButton *previousButton;
 @property (nonatomic, retain) UIButton *playPauseButton;
 @property (nonatomic, retain) UIButton *nextButton;
@@ -112,12 +133,18 @@ static const CGFloat kProgressBottomInset = 8.0;
 	return self;
 }
 
-- (UILabel *)makeLabelWithFont: (UIFont *)font alpha: (CGFloat)alpha
+- (UIView<PrintempsTextView> *)makeLabelWithFont: (UIFont *)font alpha: (CGFloat)alpha
 {
-	UILabel *label = [UILabel new];
+	Class marqueeClass = NSClassFromString(@"MRUMarqueeLabel");
+	UIView<PrintempsTextView> *label = marqueeClass == nil
+		? (UIView<PrintempsTextView> *)[UILabel new]
+		: [[marqueeClass alloc] initWithFrame:CGRectZero];
+
 	label.font = font;
 	label.textColor = [UIColor colorWithWhite:1.0 alpha:alpha];
-	label.lineBreakMode = NSLineBreakByTruncatingTail;
+	if ([label respondsToSelector:@selector(setMarqueeEnabled:)]) {
+		[(MRUMarqueeLabel *)label setMarqueeEnabled:YES];
+	}
 	[self addSubview:label];
 
 	return label;
@@ -169,7 +196,7 @@ static const CGFloat kProgressBottomInset = 8.0;
 	self.titleLabel.textAlignment = rightToLeft ? NSTextAlignmentRight : NSTextAlignmentLeft;
 	self.subtitleLabel.textAlignment = self.titleLabel.textAlignment;
 
-	CGFloat progressY = CGRectGetHeight(self.bounds) - kProgressHeight - kProgressBottomInset;
+	CGFloat progressY = CGRectGetHeight(self.bounds) - kProgressHeight;
 	self.progressTrack.frame = CGRectMake(0.0, progressY, width, kProgressHeight);
 	[self updateProgress];
 }
