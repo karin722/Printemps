@@ -76,3 +76,36 @@
 @property (nonatomic, assign) NSInteger context;
 @property (nonatomic, assign) NSInteger layout;
 @end
+
+// iOS 16.1 draws the collapsed lock screen player as a live activity, out of a
+// separate set of classes. The expanded player you get by tapping it is Control
+// Center's now playing module, which is left alone.
+@interface MRUActivityNowPlayingHeaderView : UIView
+@property (nonatomic, readonly) CGFloat labelInset;
+@property (nonatomic, readonly) MRUNowPlayingLabelView *labelView;
+@end
+
+@interface MRUActivityNowPlayingView : UIView
+@property (nonatomic, readonly) NSArray *artworkViews;
+@property (nonatomic, readonly) UIView *equalizerView;
+@property (nonatomic, readonly) MRUActivityNowPlayingHeaderView *headerView;
+@property (nonatomic, readonly) UIView *leadingView;
+@property (nonatomic, readonly) UIView *trailingView;
+@property (nonatomic, assign) BOOL showWaveform;
+@property (nonatomic, readonly) MRUNowPlayingTimeControlsView *timeControlsView;
+@property (nonatomic, readonly) MRUNowPlayingTransportControlsView *transportControlsView;
+@property (nonatomic, readonly) UIView *waveformView;
+@end
+
+@interface MRUActivityNowPlayingViewController : UIViewController
+@property (nonatomic, assign) NSInteger activeLayoutMode;
+@property (nonatomic, readonly) NSInteger preferredLayoutMode;
+@property (nonatomic, readonly) NSInteger maximumLayoutMode;
+@property (nonatomic, readonly) CGFloat preferredHeightForBottomSafeArea;
+- (BOOL)isExpanded;
+@end
+
+@interface MRUCoverSheetViewController : UIViewController
+@property (nonatomic, readonly) NSInteger layout;
+@property (nonatomic, retain) MRUNowPlayingViewController *nowPlayingViewController;
+@end
