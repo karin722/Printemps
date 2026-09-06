@@ -26,6 +26,10 @@ own hooks, picked at load time in `%ctor`.
 
 - `make package`
 
+Needs `iPhoneOS16.5.sdk` from [theos/sdks](https://github.com/theos/sdks): it is
+the oldest SDK that can build the iOS 16 code paths, and unlike Xcode's own SDK
+it carries the PrivateFrameworks the preference bundle links against.
+
 Packages are built with the rootless scheme. For a rootful build, drop
 `THEOS_PACKAGE_SCHEME=rootless` from `Makefile` and `PrintempsPrefs/Makefile`
 and set `Architecture: iphoneos-arm` in `control`.

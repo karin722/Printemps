@@ -2,16 +2,17 @@ SHELL=/bin/bash
 # THEOS=${HOME}/theos
 PACKAGE_VERSION=$(THEOS_PACKAGE_BASE_VERSION)
 
+# Has to come before common.mk, which reads both of them as it is included.
+export ARCHS = arm64 arm64e
+# iPhoneOS16.5 is the newest SDK theos ships and the oldest one that can build
+# the iOS 16 code paths. Xcode's own SDK carries no PrivateFrameworks, so it is
+# pinned rather than left as `latest`.
+export TARGET = iphone:clang:16.5:14.0
+
 # rootless
 THEOS_PACKAGE_SCHEME=rootless
 
 include $(THEOS)/makefiles/common.mk
-
-export ARCHS = arm64 arm64e
-# The deployment target stays at 14.0 so the iOS 14/15 code paths keep building;
-# `latest` picks whatever SDK the build machine has, which has to be 16 or newer
-# for the iOS 16 layout.
-export TARGET = iphone:clang:latest:14.0
 
 # SSH
 # THEOS_DEVICE_IP = localhost
