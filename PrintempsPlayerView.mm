@@ -51,6 +51,9 @@ static NSString *PrintempsInfoKey(const char *symbol)
 
 @interface MRUMarqueeLabel : UIView <PrintempsTextView>
 @property (nonatomic, assign, getter=isMarqueeEnabled) BOOL marqueeEnabled;
+// The label draws nothing until it is told how wide its text is, and scrolls
+// once that is wider than the label itself.
+@property (nonatomic, assign) CGSize contentSize;
 @end
 
 @interface UILabel (PrintempsTextView) <PrintempsTextView>
@@ -275,8 +278,8 @@ static const CGFloat kSubtitleHeight = 18.0;
 	NSString *artist = information[PrintempsInfoKey("kMRMediaRemoteNowPlayingInfoArtist")];
 	NSData *artwork = information[PrintempsInfoKey("kMRMediaRemoteNowPlayingInfoArtworkData")];
 
-	self.titleLabel.text = title;
-	self.subtitleLabel.text = artist;
+	[self setText:title onLabel:self.titleLabel];
+	[self setText:artist onLabel:self.subtitleLabel];
 	if (artwork != nil) self.artworkView.image = [UIImage imageWithData:artwork];
 
 	NSNumber *elapsed = information[PrintempsInfoKey("kMRMediaRemoteNowPlayingInfoElapsedTime")];
@@ -298,6 +301,15 @@ static const CGFloat kSubtitleHeight = 18.0;
 	[self.playPauseButton setImage:[UIImage systemImageNamed:symbol] forState:UIControlStateNormal];
 
 	[self updateProgress];
+}
+
+- (void)setText: (NSString *)text onLabel: (UIView<PrintempsTextView> *)label
+{
+	label.text = text;
+	if (![label respondsToSelector:@selector(setContentSize:)]) return;
+
+	CGSize size = [text ?: @"" sizeWithAttributes:@{NSFontAttributeName: label.font}];
+	[(MRUMarqueeLabel *)label setContentSize:size];
 }
 
 - (void)updateProgress
