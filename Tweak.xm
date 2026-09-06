@@ -323,30 +323,39 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 
 static const void *kPrintempsPlayerKey = &kPrintempsPlayerKey;
 
+// The lock screen groups its live activities, and the now playing one is the
+// only member of this group.
+static NSString * const kNowPlayingActivityIdentifier = @"com.apple.MediaRemoteUI";
+
 static const CGFloat kPlayerSideInset = 16.0;
 static const CGFloat kPlayerVerticalInset = 12.0;
-static const NSUInteger kAncestorsToReport = 8;
 
-static void PrintempsLogClassInterface(Class cls)
+// Reads an ivar without KVC, which would throw on a firmware that renamed it.
+static id PrintempsIvarValue(id object, const char *name)
 {
-	unsigned int propertyCount = 0;
-	objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
-	NSMutableArray<NSString *> *propertyNames = [NSMutableArray array];
-	for (unsigned int index = 0; index < propertyCount; index++) {
-		[propertyNames addObject:@(property_getName(properties[index]))];
-	}
-	free(properties);
+	if (object == nil) return nil;
 
-	unsigned int ivarCount = 0;
-	Ivar *ivars = class_copyIvarList(cls, &ivarCount);
-	NSMutableArray<NSString *> *ivarNames = [NSMutableArray array];
-	for (unsigned int index = 0; index < ivarCount; index++) {
-		[ivarNames addObject:@(ivar_getName(ivars[index]))];
-	}
-	free(ivars);
+	Ivar ivar = class_getInstanceVariable(object_getClass(object), name);
+	return ivar == NULL ? nil : object_getIvar(object, ivar);
+}
 
-	PrintempsLog(@"%@ properties: %@ ivars: %@", NSStringFromClass(cls),
-		[propertyNames componentsJoinedByString:@", "], [ivarNames componentsJoinedByString:@", "]);
+// Which activity the item belongs to is only known to the notification list
+// cell holding it, as the configuration it was built from.
+static BOOL PrintempsIsNowPlayingActivity(UIView *view)
+{
+	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
+		if (![ancestor isKindOfClass:%c(NCNotificationListCell)]) continue;
+
+		id controller = PrintempsIvarValue(ancestor, "_contentViewController");
+		id configuration = PrintempsIvarValue(controller, "_configuration");
+		id identifier = PrintempsIvarValue(configuration, "_groupingIdentifier");
+
+		PrintempsLog(@"activity group %@", identifier);
+		return [identifier isKindOfClass:NSString.class]
+			&& [(NSString *)identifier isEqualToString:kNowPlayingActivityIdentifier];
+	}
+
+	return NO;
 }
 
 %group Modern
@@ -362,24 +371,11 @@ static void PrintempsLogClassInterface(Class cls)
 			player = [[PrintempsPlayerView alloc] initWithFrame:CGRectZero];
 			objc_setAssociatedObject(self, kPrintempsPlayerKey, player, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 			[self addSubview:player];
-
-			if (sDebugLogging) {
-				PrintempsLogClassInterface(self.class);
-
-				// Whatever says which activity this is lives somewhere above.
-				UIView *ancestor = self.superview;
-				for (NSUInteger depth = 0; depth < kAncestorsToReport && ancestor != nil; depth++) {
-					PrintempsLog(@"ancestor %lu %@", (unsigned long)depth, ancestor.description);
-					ancestor = ancestor.superview;
-				}
-			}
 		}
 
 		player.hidesPreviousButton = sHidePrevious;
 
-		// Nothing playing means this is somebody else's activity, so it is left
-		// alone.
-		BOOL takeOver = player.hasContent;
+		BOOL takeOver = player.hasContent && PrintempsIsNowPlayingActivity(self);
 		for (UIView *subview in self.subviews) {
 			if (subview != player) subview.hidden = takeOver;
 		}
@@ -404,7 +400,7 @@ static void PrintempsLogClassInterface(Class cls)
 		CGSize fitted = %orig;
 
 		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
-		if (!player.hasContent) return fitted;
+		if (player.hidden || !player.hasContent) return fitted;
 
 		fitted.height = PrintempsPlayerView.preferredHeight + 2.0 * kPlayerVerticalInset;
 		return fitted;
