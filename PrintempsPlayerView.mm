@@ -34,7 +34,7 @@ static void PrintempsLoadMediaRemote(void)
 // to be their own symbol names, so the literal is a safe fallback.
 static NSString *PrintempsInfoKey(const char *symbol)
 {
-	NSString **value = (NSString **)dlsym(RTLD_DEFAULT, symbol);
+	NSString * __unsafe_unretained *value = (NSString * __unsafe_unretained *)dlsym(RTLD_DEFAULT, symbol);
 	return value == NULL ? @(symbol) : *value;
 }
 
