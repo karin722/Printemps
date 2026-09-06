@@ -51,9 +51,6 @@
 @property (nonatomic, retain) UIView *slider;    // iOS 16
 @end
 
-@interface CSCoverSheetViewController : UIViewController
-@end
-
 // The lock screen's live activity item. Its content is drawn out of process.
 @interface CSActivityItemContentView : UIView
 @end

@@ -263,7 +263,9 @@ static const CGFloat kProgressBottomInset = 8.0;
 	self.elapsedTimestamp = [timestamp isKindOfClass:NSDate.class] ? timestamp : NSDate.date;
 	self.playing = self.playbackRate > 0.0;
 
+	BOOL hadContent = _hasContent;
 	_hasContent = title.length > 0;
+	if (hadContent != _hasContent) [self.superview setNeedsLayout];
 
 	NSString *symbol = self.playing ? @"pause.fill" : @"play.fill";
 	[self.playPauseButton setImage:[UIImage systemImageNamed:symbol] forState:UIControlStateNormal];

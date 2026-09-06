@@ -315,33 +315,44 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 
 // iOS 16 renders the collapsed lock screen player out of process. The cover
 // sheet holds a live activity item whose content arrives as a hosted scene
-// layer, so there are no MediaControls views left in SpringBoard to restyle.
-// Printemps draws its own player from MediaRemote and puts it on the cover
-// sheet instead.
+// layer, so there are no MediaControls views in SpringBoard left to restyle.
+//
+// Printemps takes that item over instead: its own player goes inside it and the
+// hosted content is hidden. Sitting in the item means the lock screen keeps
+// deciding where the player goes and how big it is.
 
 static const void *kPrintempsPlayerKey = &kPrintempsPlayerKey;
 
-static const CGFloat kPlayerSideMargin = 24.0;
-static const CGFloat kPlayerBottomInset = 150.0;
+static const CGFloat kPlayerSideInset = 16.0;
+static const NSUInteger kAncestorsToReport = 4;
 
 static void PrintempsLogClassInterface(Class cls)
 {
-	unsigned int count = 0;
-	objc_property_t *properties = class_copyPropertyList(cls, &count);
-	NSMutableArray<NSString *> *names = [NSMutableArray array];
-	for (unsigned int index = 0; index < count; index++) {
-		[names addObject:@(property_getName(properties[index]))];
+	unsigned int propertyCount = 0;
+	objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
+	NSMutableArray<NSString *> *propertyNames = [NSMutableArray array];
+	for (unsigned int index = 0; index < propertyCount; index++) {
+		[propertyNames addObject:@(property_getName(properties[index]))];
 	}
 	free(properties);
 
-	PrintempsLog(@"%@ properties: %@", NSStringFromClass(cls), [names componentsJoinedByString:@", "]);
+	unsigned int ivarCount = 0;
+	Ivar *ivars = class_copyIvarList(cls, &ivarCount);
+	NSMutableArray<NSString *> *ivarNames = [NSMutableArray array];
+	for (unsigned int index = 0; index < ivarCount; index++) {
+		[ivarNames addObject:@(ivar_getName(ivars[index]))];
+	}
+	free(ivars);
+
+	PrintempsLog(@"%@ properties: %@ ivars: %@", NSStringFromClass(cls),
+		[propertyNames componentsJoinedByString:@", "], [ivarNames componentsJoinedByString:@", "]);
 }
 
 %group Modern
 
-%hook CSCoverSheetViewController
+%hook CSActivityItemContentView
 
-	- (void)viewDidLayoutSubviews
+	- (void)layoutSubviews
 	{
 		%orig;
 
@@ -349,39 +360,39 @@ static void PrintempsLogClassInterface(Class cls)
 		if (player == nil) {
 			player = [[PrintempsPlayerView alloc] initWithFrame:CGRectZero];
 			objc_setAssociatedObject(self, kPrintempsPlayerKey, player, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-			[self.view addSubview:player];
-			PrintempsLog(@"added the player to %@", NSStringFromClass(self.class));
+			[self addSubview:player];
+
+			if (sDebugLogging) {
+				PrintempsLogClassInterface(self.class);
+
+				// Whatever says which activity this is lives somewhere above.
+				UIView *ancestor = self.superview;
+				for (NSUInteger depth = 0; depth < kAncestorsToReport && ancestor != nil; depth++) {
+					PrintempsLog(@"ancestor %lu %@", (unsigned long)depth, ancestor.description);
+					ancestor = ancestor.superview;
+				}
+			}
 		}
 
 		player.hidesPreviousButton = sHidePrevious;
 
-		CGRect bounds = self.view.bounds;
+		// Nothing playing means this is somebody else's activity, so it is left
+		// alone.
+		BOOL takeOver = player.hasContent;
+		for (UIView *subview in self.subviews) {
+			if (subview != player) subview.hidden = takeOver;
+		}
+
+		player.hidden = !takeOver;
+		if (!takeOver) return;
+
+		CGRect bounds = self.bounds;
 		CGFloat height = PrintempsPlayerView.preferredHeight;
-		player.frame = CGRectMake(kPlayerSideMargin,
-			CGRectGetHeight(bounds) - kPlayerBottomInset - height,
-			CGRectGetWidth(bounds) - 2.0 * kPlayerSideMargin, height);
-		[self.view bringSubviewToFront:player];
+		player.frame = CGRectMake(kPlayerSideInset, (CGRectGetHeight(bounds) - height) / 2.0,
+			CGRectGetWidth(bounds) - 2.0 * kPlayerSideInset, height);
+		[self bringSubviewToFront:player];
 
-		PrintempsLog(@"player %@ content %d on a cover sheet of %@",
-			NSStringFromCGRect(player.frame), player.hasContent, NSStringFromCGRect(bounds));
-	}
-
-%end
-
-// The stock widget is a live activity. Report where the cover sheet keeps it,
-// so it can be hidden once it can be told apart from the other activities.
-%hook CSActivityItemContentView
-
-	- (void)layoutSubviews
-	{
-		%orig;
-
-		if (!sDebugLogging) return;
-
-		static dispatch_once_t once;
-		dispatch_once(&once, ^{ PrintempsLogClassInterface(self.class); });
-
-		PrintempsLog(@"activity item %@ %@", NSStringFromCGRect(self.frame), self.description);
+		PrintempsLog(@"took over %@ with %@", NSStringFromCGRect(bounds), NSStringFromCGRect(player.frame));
 	}
 
 %end
