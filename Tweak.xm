@@ -291,6 +291,17 @@ static const void *kPrintempsCompactKey = &kPrintempsCompactKey;
 // back before we are done.
 static BOOL sUpdatingVisibility;
 
+// Every view controller above the player, which is what the lock screen test
+// below looks at. Only built when debug logging is on.
+static NSString *PrintempsResponderChain(UIView *view)
+{
+	NSMutableArray<NSString *> *names = [NSMutableArray array];
+	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
+		if ([responder isKindOfClass:UIViewController.class]) [names addObject:NSStringFromClass(responder.class)];
+	}
+	return [names componentsJoinedByString:@" < "];
+}
+
 static BOOL PrintempsIsLockScreenView(UIView *view)
 {
 	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
@@ -380,7 +391,16 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 	{
 		%orig;
 
-		if (sUpdatingVisibility || !PrintempsIsLockScreenView(self)) return;
+		if (sUpdatingVisibility) return;
+
+		if (sDebugLogging) {
+			PrintempsLog(@"player %p layout %ld context %ld artwork %d transport %d time %d volume %d bounds %@ under %@",
+				self, (long)self.layout, (long)self.context, self.showArtworkView,
+				self.showTransportControlsView, self.showTimeControlsView, self.showVolumeControlsView,
+				NSStringFromCGRect(self.bounds), PrintempsResponderChain(self));
+		}
+
+		if (!PrintempsIsLockScreenView(self)) return;
 
 		BOOL compact = !self.showTransportControlsView;
 		objc_setAssociatedObject(self, kPrintempsCompactKey, @(compact), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -440,8 +460,10 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 		NULL, CFNotificationSuspensionBehaviorCoalesce);
 
 	if (@available(iOS 16.0, *)) {
+		PrintempsLog(@"loaded on iOS %@, using the iOS 16 hooks", UIDevice.currentDevice.systemVersion);
 		%init(Modern);
 	} else {
+		PrintempsLog(@"loaded on iOS %@, using the iOS 14/15 hooks", UIDevice.currentDevice.systemVersion);
 		%init(Legacy);
 
 		if (@available(iOS 15.0, *)) {
