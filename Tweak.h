@@ -1,5 +1,9 @@
 #import <UIKit/UIKit.h>
 
+@interface UIView (Printemps)
+- (NSString *)recursiveDescription;
+@end
+
 // MediaControls.framework (private).
 //
 // The lock screen player changed shape in iOS 16:

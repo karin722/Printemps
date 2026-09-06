@@ -33,6 +33,7 @@ static void PrintempsPreferencesChanged(CFNotificationCenterRef center, void *ob
 // lines are also appended to a file that can just be read with cat.
 static NSString * const kLogFilePath = @"/var/mobile/Library/Logs/Printemps.log";
 static const unsigned long long kLogFileSizeLimit = 256 * 1024;
+static const NSUInteger kHierarchyDumpLimit = 8000;
 
 static void PrintempsAppendToLogFile(NSString *message)
 {
@@ -323,6 +324,10 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 // firmwares, so the collapsed state is recognised by what the stock player does
 // with it instead: it is the only lock screen layout that hides the transport
 // controls.
+//
+// Everything is decided in -layoutSubviews. -updateVisibility runs once, while
+// the view is still detached and its bounds are empty, which is too early to
+// tell where the player ended up.
 
 static const void *kPrintempsCompactKey = &kPrintempsCompactKey;
 
@@ -330,24 +335,35 @@ static const void *kPrintempsCompactKey = &kPrintempsCompactKey;
 // back before we are done.
 static BOOL sUpdatingVisibility;
 
-// Every view controller above the player, which is what the lock screen test
-// below looks at. Only built when debug logging is on.
-static NSString *PrintempsResponderChain(UIView *view)
+// Superviews first, then the view controllers above them, which is what the
+// lock screen test looks at.
+static NSString *PrintempsAncestry(UIView *view)
 {
 	NSMutableArray<NSString *> *names = [NSMutableArray array];
+	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
+		[names addObject:NSStringFromClass(ancestor.class)];
+	}
 	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
-		if ([responder isKindOfClass:UIViewController.class]) [names addObject:NSStringFromClass(responder.class)];
+		if ([responder isKindOfClass:UIViewController.class]) {
+			[names addObject:[@"@" stringByAppendingString:NSStringFromClass(responder.class)]];
+		}
 	}
 	return [names componentsJoinedByString:@" < "];
 }
 
+static BOOL PrintempsIsLockScreenClassName(NSString *name)
+{
+	return [name hasPrefix:@"CS"] || [name hasPrefix:@"SBDashBoard"] || [name containsString:@"CoverSheet"];
+}
+
 static BOOL PrintempsIsLockScreenView(UIView *view)
 {
+	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
+		if (PrintempsIsLockScreenClassName(NSStringFromClass(ancestor.class))) return YES;
+	}
 	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
-		if (![responder isKindOfClass:UIViewController.class]) continue;
-
-		NSString *name = NSStringFromClass(responder.class);
-		if ([name hasPrefix:@"CS"] || [name containsString:@"CoverSheet"]) return YES;
+		if ([responder isKindOfClass:UIViewController.class]
+			&& PrintempsIsLockScreenClassName(NSStringFromClass(responder.class))) return YES;
 	}
 	return NO;
 }
@@ -402,13 +418,14 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 	frame.origin.y = kTimeControlsOriginY;
 	timeControlsView.frame = frame;
 
-	// -updateVisibility hides these again whenever the stock player refreshes
-	// itself, so they are put back on every layout pass.
+	// Only -hidden is touched here. Writing the show* flags would send the view
+	// back through -updateVisibility and -setNeedsLayout on every pass.
 	artworkView.hidden = NO;
 	headerView.hidden = NO;
 	transportControlsView.hidden = NO;
 	timeControlsView.hidden = NO;
 	view.volumeControlsView.hidden = YES;
+	headerView.showWaveform = NO;
 
 	transportControlsView.leftButton.hidden = sHidePrevious;
 	artworkView.iconView.hidden = sHideAppIcon;
@@ -416,7 +433,7 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 	timeControlsView.elapsedTimeLabel.hidden = YES;
 	timeControlsView.remainingTimeLabel.hidden = YES;
 
-	PrintempsLog(@"compact player %@ artwork %@ header %@ transport %@ time %@",
+	PrintempsLog(@"styled %@ artwork %@ header %@ transport %@ time %@",
 		NSStringFromCGRect(view.bounds), NSStringFromCGRect(artworkView.frame),
 		NSStringFromCGRect(headerView.frame), NSStringFromCGRect(transportControlsView.frame),
 		NSStringFromCGRect(timeControlsView.frame));
@@ -426,29 +443,32 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 
 %hook MRUNowPlayingView
 
-	- (void)updateVisibility
+	- (void)layoutSubviews
 	{
 		%orig;
 
-		if (sUpdatingVisibility) return;
-
+		BOOL lockScreen = PrintempsIsLockScreenView(self);
 		if (sDebugLogging) {
-			PrintempsLog(@"player %p layout %ld context %ld artwork %d transport %d time %d volume %d bounds %@ under %@",
-				self, (long)self.layout, (long)self.context, self.showArtworkView,
+			PrintempsLog(@"layout %ld context %ld show a%d t%d s%d v%d lockScreen %d bounds %@ in %@",
+				(long)self.layout, (long)self.context, self.showArtworkView,
 				self.showTransportControlsView, self.showTimeControlsView, self.showVolumeControlsView,
-				NSStringFromCGRect(self.bounds), PrintempsResponderChain(self));
+				lockScreen, NSStringFromCGRect(self.bounds), PrintempsAncestry(self));
 		}
-
-		if (!PrintempsIsLockScreenView(self)) return;
+		if (!lockScreen) return;
 
 		BOOL compact = !self.showTransportControlsView;
 		objc_setAssociatedObject(self, kPrintempsCompactKey, @(compact), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 		sCompactPlayerNeedsPrintempsHeight = compact;
 
-		PrintempsLog(@"lock screen player layout %ld context %ld compact %d",
-			(long)self.layout, (long)self.context, compact);
+		if (compact) PrintempsLayoutCompactPlayer(self);
+	}
 
-		if (!compact) return;
+	- (void)updateVisibility
+	{
+		%orig;
+
+		if (sUpdatingVisibility || !PrintempsIsLockScreenView(self)) return;
+		if (self.showTransportControlsView) return;
 
 		sUpdatingVisibility = YES;
 		self.showArtworkView = YES;
@@ -462,19 +482,31 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 		sUpdatingVisibility = NO;
 	}
 
-	- (void)layoutSubviews
-	{
-		%orig;
-
-		if (PrintempsWantsCompactStyling(self)) PrintempsLayoutCompactPlayer(self);
-	}
-
 	- (CGSize)sizeThatFits: (CGSize)size
 	{
 		CGSize fitted = %orig;
 		if (PrintempsWantsCompactStyling(self)) fitted.height = PrintempsPlayerHeight();
 
 		return fitted;
+	}
+
+%end
+
+%hook MRUNowPlayingViewController
+
+	- (void)viewDidAppear: (BOOL)animated
+	{
+		%orig;
+
+		if (!sDebugLogging) return;
+
+		PrintempsLog(@"controller %@ context %ld layout %ld view %@",
+			NSStringFromClass(self.class), (long)self.context, (long)self.layout,
+			PrintempsAncestry(self.view));
+
+		NSString *hierarchy = [self.view recursiveDescription];
+		PrintempsLog(@"hierarchy %@", hierarchy.length > kHierarchyDumpLimit
+			? [hierarchy substringToIndex:kHierarchyDumpLimit] : hierarchy);
 	}
 
 %end
@@ -498,6 +530,16 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 		PrintempsPreferencesChanged, (__bridge CFStringRef)kPreferencesChangedNotification,
 		NULL, CFNotificationSuspensionBehaviorCoalesce);
 
+	if (sDebugLogging) {
+		NSMutableArray<NSString *> *present = [NSMutableArray array];
+		for (NSString *name in @[@"MRUNowPlayingView", @"MRUNowPlayingViewController",
+			@"MRUActivityNowPlayingViewController", @"MRUActivityArtworkView", @"MRPlatterViewController",
+			@"MRUSessionNowPlayingView", @"CSMediaControlsViewController", @"CSMediaControlsView"]) {
+			if (NSClassFromString(name) != nil) [present addObject:name];
+		}
+		PrintempsLog(@"classes present: %@", [present componentsJoinedByString:@", "]);
+	}
+
 	if (@available(iOS 16.0, *)) {
 		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 16 hooks", UIDevice.currentDevice.systemVersion]);
 		%init(Modern);
@@ -518,3 +560,4 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 		}
 	}
 }
+
