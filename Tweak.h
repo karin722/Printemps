@@ -54,3 +54,9 @@
 // The lock screen's live activity item. Its content is drawn out of process.
 @interface CSActivityItemContentView : UIView
 @end
+
+// The list the item is laid out in. It caches what it measured, so resizing an
+// item means telling it to measure again.
+@interface NCNotificationListView : UIScrollView
+- (void)invalidateData;
+@end

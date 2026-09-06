@@ -358,6 +358,19 @@ static BOOL PrintempsIsNowPlayingActivity(UIView *view)
 	return NO;
 }
 
+// The list measured the item once and kept the answer, so a resize needs it to
+// throw that away.
+static void PrintempsInvalidateList(UIView *view)
+{
+	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
+		if (![ancestor isKindOfClass:%c(NCNotificationListView)]) continue;
+
+		[(NCNotificationListView *)ancestor invalidateData];
+		[ancestor setNeedsLayout];
+		return;
+	}
+}
+
 %group Modern
 
 %hook CSActivityItemContentView
@@ -399,10 +412,24 @@ static BOOL PrintempsIsNowPlayingActivity(UIView *view)
 			CGSize wanted = CGSizeMake(CGRectGetWidth(bounds), height + 2.0 * kPlayerInset);
 			if (!CGSizeEqualToSize(controller.preferredContentSize, wanted)) {
 				controller.preferredContentSize = wanted;
+				PrintempsInvalidateList(self);
 			}
 		}
 
 		PrintempsLog(@"took over %@ with %@", NSStringFromCGRect(bounds), NSStringFromCGRect(player.frame));
+	}
+
+	// Everything from the platter up to the notification list sizes itself from
+	// this, so it is what shrinks the card around the player.
+	- (CGSize)sizeThatFits: (CGSize)size
+	{
+		CGSize fitted = %orig;
+
+		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
+		if (!player.hasContent || !PrintempsIsNowPlayingActivity(self)) return fitted;
+
+		fitted.height = PrintempsPlayerView.preferredHeight + 2.0 * kPlayerInset;
+		return fitted;
 	}
 
 %end

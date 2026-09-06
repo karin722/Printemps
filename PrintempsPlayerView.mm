@@ -54,6 +54,8 @@ static NSString *PrintempsInfoKey(const char *symbol)
 // The label draws nothing until it is told how wide its text is, and scrolls
 // once that is wider than the label itself.
 @property (nonatomic, assign) CGSize contentSize;
+// The view that actually draws the text.
+@property (nonatomic, readonly) UIView *label;
 @end
 
 @interface UILabel (PrintempsTextView) <PrintempsTextView>
@@ -308,8 +310,17 @@ static const CGFloat kSubtitleHeight = 18.0;
 	label.text = text;
 	if (![label respondsToSelector:@selector(setContentSize:)]) return;
 
-	CGSize size = [text ?: @"" sizeWithAttributes:@{NSFontAttributeName: label.font}];
-	[(MRUMarqueeLabel *)label setContentSize:size];
+	// Ask the view that draws the text how wide it needs to be. Measuring from
+	// the font here instead comes out a fraction of a point short, which is
+	// enough to truncate the last character.
+	MRUMarqueeLabel *marquee = (MRUMarqueeLabel *)label;
+	CGSize size = [marquee.label sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)];
+	if (size.width <= 0.0) {
+		size = [text ?: @"" sizeWithAttributes:@{NSFontAttributeName: label.font}];
+		size.width = ceil(size.width) + 1.0;
+	}
+
+	marquee.contentSize = size;
 }
 
 - (void)updateProgress
