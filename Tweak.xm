@@ -324,7 +324,8 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 static const void *kPrintempsPlayerKey = &kPrintempsPlayerKey;
 
 static const CGFloat kPlayerSideInset = 16.0;
-static const NSUInteger kAncestorsToReport = 4;
+static const CGFloat kPlayerVerticalInset = 12.0;
+static const NSUInteger kAncestorsToReport = 8;
 
 static void PrintempsLogClassInterface(Class cls)
 {
@@ -393,6 +394,20 @@ static void PrintempsLogClassInterface(Class cls)
 		[self bringSubviewToFront:player];
 
 		PrintempsLog(@"took over %@ with %@", NSStringFromCGRect(bounds), NSStringFromCGRect(player.frame));
+	}
+
+	// The platter is as tall as the stock widget asked for, which leaves the
+	// player floating in an empty card. This is what the whole chain above sizes
+	// itself from.
+	- (CGSize)sizeThatFits: (CGSize)size
+	{
+		CGSize fitted = %orig;
+
+		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
+		if (!player.hasContent) return fitted;
+
+		fitted.height = PrintempsPlayerView.preferredHeight + 2.0 * kPlayerVerticalInset;
+		return fitted;
 	}
 
 %end
