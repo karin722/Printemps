@@ -1,4 +1,5 @@
 #import "Tweak.h"
+#import "PrintempsPlayerView.h"
 #import <objc/runtime.h>
 
 #pragma mark - Preferences
@@ -33,7 +34,6 @@ static void PrintempsPreferencesChanged(CFNotificationCenterRef center, void *ob
 // lines are also appended to a file that can just be read with cat.
 static NSString * const kLogFilePath = @"/var/mobile/Library/Logs/Printemps.log";
 static const unsigned long long kLogFileSizeLimit = 256 * 1024;
-static const NSUInteger kHierarchyDumpLimit = 24000;
 
 static void PrintempsAppendToLogFile(NSString *message)
 {
@@ -67,18 +67,6 @@ static void PrintempsLogMessage(NSString *message)
 {
 	NSLog(@"[Printemps] %@", message);
 	if (sDebugLogging) PrintempsAppendToLogFile(message);
-}
-
-// A long string split over several log lines, so nothing is lost to a cap.
-static void PrintempsLogChunked(NSString *label, NSString *text)
-{
-	static const NSUInteger chunkLength = 1500;
-	NSString *capped = text.length > kHierarchyDumpLimit ? [text substringToIndex:kHierarchyDumpLimit] : text;
-
-	for (NSUInteger offset = 0, part = 0; offset < capped.length; offset += chunkLength, part++) {
-		NSRange range = NSMakeRange(offset, MIN(chunkLength, capped.length - offset));
-		PrintempsLog(@"%@[%lu] %@", label, (unsigned long)part, [capped substringWithRange:range]);
-	}
 }
 
 #pragma mark - Metrics
@@ -125,10 +113,6 @@ static const CGFloat kTimeControlsOriginY = 60.0;
 // Width of the media controls area, published by the CoverSheet hooks and read
 // back by the iOS 14/15 layout hooks, which only ever see their own subview.
 static CGFloat sPlayerWidth;
-
-// Set while a collapsed lock screen player is on screen, so that CoverSheet is
-// asked for the Printemps height instead of the stock one (iOS 16).
-static BOOL sCompactPlayerNeedsPrintempsHeight;
 
 static CGFloat PrintempsPlayerHeight(void)
 {
@@ -329,355 +313,75 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 
 #pragma mark - iOS 16
 
-// iOS 16 collapses the lock screen player and expands it again when it is
-// tapped. Only the collapsed one is restyled, the expanded one is left stock.
-//
-// The `layout` enum behind that state is undocumented and moves between
-// firmwares, so the collapsed state is recognised by what the stock player does
-// with it instead: it is the only lock screen layout that hides the transport
-// controls.
-//
-// Everything is decided in -layoutSubviews. -updateVisibility runs once, while
-// the view is still detached and its bounds are empty, which is too early to
-// tell where the player ended up.
+// iOS 16 renders the collapsed lock screen player out of process. The cover
+// sheet holds a live activity item whose content arrives as a hosted scene
+// layer, so there are no MediaControls views left in SpringBoard to restyle.
+// Printemps draws its own player from MediaRemote and puts it on the cover
+// sheet instead.
 
-static const void *kPrintempsCompactKey = &kPrintempsCompactKey;
+static const void *kPrintempsPlayerKey = &kPrintempsPlayerKey;
 
-// Guards against the re-entrancy of -updateVisibility, whose setters call it
-// back before we are done.
-static BOOL sUpdatingVisibility;
+static const CGFloat kPlayerSideMargin = 24.0;
+static const CGFloat kPlayerBottomInset = 150.0;
 
-// Superviews first, then the view controllers above them, which is what the
-// lock screen test looks at.
-static NSString *PrintempsAncestry(UIView *view)
+static void PrintempsLogClassInterface(Class cls)
 {
+	unsigned int count = 0;
+	objc_property_t *properties = class_copyPropertyList(cls, &count);
 	NSMutableArray<NSString *> *names = [NSMutableArray array];
-	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
-		[names addObject:NSStringFromClass(ancestor.class)];
+	for (unsigned int index = 0; index < count; index++) {
+		[names addObject:@(property_getName(properties[index]))];
 	}
-	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
-		if ([responder isKindOfClass:UIViewController.class]) {
-			[names addObject:[@"@" stringByAppendingString:NSStringFromClass(responder.class)]];
-		}
-	}
-	return [names componentsJoinedByString:@" < "];
-}
+	free(properties);
 
-static BOOL PrintempsIsLockScreenClassName(NSString *name)
-{
-	return [name hasPrefix:@"CS"] || [name hasPrefix:@"SBDashBoard"] || [name containsString:@"CoverSheet"];
-}
-
-static BOOL PrintempsIsLockScreenView(UIView *view)
-{
-	for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
-		if (PrintempsIsLockScreenClassName(NSStringFromClass(ancestor.class))) return YES;
-	}
-	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
-		if ([responder isKindOfClass:UIViewController.class]
-			&& PrintempsIsLockScreenClassName(NSStringFromClass(responder.class))) return YES;
-	}
-	return NO;
-}
-
-static BOOL PrintempsWantsCompactStyling(MRUNowPlayingView *view)
-{
-	NSNumber *cached = objc_getAssociatedObject(view, kPrintempsCompactKey);
-	if (cached != nil) return cached.boolValue;
-
-	return PrintempsIsLockScreenView(view) && !view.showTransportControlsView;
-}
-
-static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
-{
-	CGFloat width = CGRectGetWidth(view.bounds);
-	if (width <= 0.0) return;
-
-	BOOL rightToLeft = PrintempsIsRightToLeft(view);
-	MRUArtworkView *artworkView = view.artworkView;
-	MRUNowPlayingHeaderView *headerView = view.headerView;
-	MRUNowPlayingTransportControlsView *transportControlsView = view.transportControlsView;
-	MRUNowPlayingTimeControlsView *timeControlsView = view.timeControlsView;
-
-	CGRect frame = artworkView.frame;
-	frame.origin.y = 0.0;
-	frame.size = CGSizeMake(kArtworkSize, kArtworkSize);
-	if (rightToLeft) frame.origin.x = width - kArtworkTrailingInsetRTL;
-	artworkView.frame = frame;
-
-	frame = headerView.frame;
-	frame.origin.y = kLabelOriginY;
-	if (sHidePrevious) {
-		frame.origin.x = rightToLeft ? kLabelOriginXRTL15WithoutPrevious : kLabelOriginX;
-		frame.size.width = width - kLabelWidthInset15WithoutPrevious;
-	} else {
-		frame.origin.x = rightToLeft ? kLabelOriginXRTL15 : kLabelOriginX;
-		frame.size.width = width - kLabelWidthInset15;
-	}
-	headerView.frame = frame;
-
-	frame = transportControlsView.frame;
-	frame.origin.y = kControlsOriginY;
-	frame.size = CGSizeMake(kControlsWidth, kControlsHeight);
-	if (rightToLeft) {
-		frame.origin.x = sHidePrevious ? kControlsOriginXRTLWithoutPrevious : kControlsOriginXRTL;
-	} else {
-		frame.origin.x = width - kControlsTrailingInset;
-	}
-	transportControlsView.frame = frame;
-
-	frame = timeControlsView.frame;
-	frame.origin.y = kTimeControlsOriginY;
-	timeControlsView.frame = frame;
-
-	// Only -hidden is touched here. Writing the show* flags would send the view
-	// back through -updateVisibility and -setNeedsLayout on every pass.
-	artworkView.hidden = NO;
-	headerView.hidden = NO;
-	transportControlsView.hidden = NO;
-	timeControlsView.hidden = NO;
-	view.volumeControlsView.hidden = YES;
-	headerView.showWaveform = NO;
-
-	transportControlsView.leftButton.hidden = sHidePrevious;
-	artworkView.iconView.hidden = sHideAppIcon;
-	artworkView.iconShadowView.hidden = sHideAppIcon;
-	timeControlsView.elapsedTimeLabel.hidden = YES;
-	timeControlsView.remainingTimeLabel.hidden = YES;
-
-	PrintempsLog(@"styled %@ artwork %@ header %@ transport %@ time %@",
-		NSStringFromCGRect(view.bounds), NSStringFromCGRect(artworkView.frame),
-		NSStringFromCGRect(headerView.frame), NSStringFromCGRect(transportControlsView.frame),
-		NSStringFromCGRect(timeControlsView.frame));
-}
-
-#pragma mark - iOS 16 collapsed lock screen player
-
-// Metrics for the live activity player. Its height is decided by the lock
-// screen, not by us, so the arrangement is derived from whatever bounds it
-// gets rather than from fixed offsets.
-static const CGFloat kActivitySpacing = 10.0;
-static const CGFloat kActivityTransportWidth = 100.0;
-static const CGFloat kActivityTransportHeight = 25.0;
-static const CGFloat kActivityTimeControlsHeight = 14.0;
-
-static MRUActivityNowPlayingViewController *PrintempsActivityController(UIView *view)
-{
-	for (UIResponder *responder = view; responder != nil; responder = responder.nextResponder) {
-		if ([responder isKindOfClass:%c(MRUActivityNowPlayingViewController)]) return (MRUActivityNowPlayingViewController *)responder;
-	}
-	return nil;
-}
-
-static CGRect PrintempsFlipped(CGRect frame, CGFloat width, BOOL rightToLeft)
-{
-	if (rightToLeft) frame.origin.x = width - CGRectGetMaxX(frame);
-	return frame;
-}
-
-static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
-{
-	CGFloat width = CGRectGetWidth(view.bounds);
-	CGFloat height = CGRectGetHeight(view.bounds);
-	if (width <= 0.0 || height <= 0.0) return;
-
-	BOOL rightToLeft = PrintempsIsRightToLeft(view);
-	UIView *artworkView = view.artworkViews.firstObject;
-	MRUActivityNowPlayingHeaderView *headerView = view.headerView;
-	MRUNowPlayingTransportControlsView *transportControlsView = view.transportControlsView;
-	MRUNowPlayingTimeControlsView *timeControlsView = view.timeControlsView;
-
-	// Keep whatever leading inset the lock screen gave the artwork.
-	CGFloat inset = MAX(0.0, CGRectGetMinX(artworkView.frame));
-	if (inset > width / 2.0) inset = 0.0;
-
-	CGFloat artworkSize = MIN(kArtworkSize, height);
-	CGRect artworkFrame = CGRectMake(inset, (height - artworkSize) / 2.0, artworkSize, artworkSize);
-	artworkView.frame = PrintempsFlipped(artworkFrame, width, rightToLeft);
-
-	CGFloat contentLeading = inset + artworkSize + kActivitySpacing;
-	CGFloat transportX = width - inset - kActivityTransportWidth;
-	CGFloat contentHeight = height - kActivityTimeControlsHeight;
-
-	CGRect transportFrame = CGRectMake(transportX, (contentHeight - kActivityTransportHeight) / 2.0,
-		kActivityTransportWidth, kActivityTransportHeight);
-	transportControlsView.frame = PrintempsFlipped(transportFrame, width, rightToLeft);
-
-	CGFloat headerWidth = MAX(0.0, transportX - contentLeading - kActivitySpacing);
-	CGRect headerFrame = CGRectMake(contentLeading, 0.0, headerWidth, contentHeight);
-	headerView.frame = PrintempsFlipped(headerFrame, width, rightToLeft);
-
-	CGRect timeFrame = CGRectMake(contentLeading, contentHeight,
-		MAX(0.0, width - contentLeading - inset), kActivityTimeControlsHeight);
-	timeControlsView.frame = PrintempsFlipped(timeFrame, width, rightToLeft);
-
-	// Only -hidden is touched: writing showWaveform would send the view back
-	// through its own layout on every pass.
-	view.waveformView.hidden = YES;
-	view.equalizerView.hidden = YES;
-	artworkView.hidden = NO;
-	headerView.hidden = NO;
-	transportControlsView.hidden = NO;
-	timeControlsView.hidden = NO;
-
-	transportControlsView.leftButton.hidden = sHidePrevious;
-	timeControlsView.elapsedTimeLabel.hidden = YES;
-	timeControlsView.remainingTimeLabel.hidden = YES;
-
-	PrintempsLog(@"styled activity %@ artwork %@ header %@ transport %@ time %@",
-		NSStringFromCGRect(view.bounds), NSStringFromCGRect(artworkView.frame),
-		NSStringFromCGRect(headerView.frame), NSStringFromCGRect(transportControlsView.frame),
-		NSStringFromCGRect(timeControlsView.frame));
+	PrintempsLog(@"%@ properties: %@", NSStringFromClass(cls), [names componentsJoinedByString:@", "]);
 }
 
 %group Modern
 
-%hook MRUNowPlayingView
+%hook CSCoverSheetViewController
 
-	- (void)layoutSubviews
+	- (void)viewDidLayoutSubviews
 	{
 		%orig;
 
-		BOOL lockScreen = PrintempsIsLockScreenView(self);
-		if (sDebugLogging) {
-			PrintempsLog(@"layout %ld context %ld show a%d t%d s%d v%d lockScreen %d bounds %@ in %@",
-				(long)self.layout, (long)self.context, self.showArtworkView,
-				self.showTransportControlsView, self.showTimeControlsView, self.showVolumeControlsView,
-				lockScreen, NSStringFromCGRect(self.bounds), PrintempsAncestry(self));
+		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
+		if (player == nil) {
+			player = [[PrintempsPlayerView alloc] initWithFrame:CGRectZero];
+			objc_setAssociatedObject(self, kPrintempsPlayerKey, player, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+			[self.view addSubview:player];
+			PrintempsLog(@"added the player to %@", NSStringFromClass(self.class));
 		}
-		if (!lockScreen) return;
 
-		BOOL compact = !self.showTransportControlsView;
-		objc_setAssociatedObject(self, kPrintempsCompactKey, @(compact), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-		sCompactPlayerNeedsPrintempsHeight = compact;
+		player.hidesPreviousButton = sHidePrevious;
 
-		if (compact) PrintempsLayoutCompactPlayer(self);
-	}
+		CGRect bounds = self.view.bounds;
+		CGFloat height = PrintempsPlayerView.preferredHeight;
+		player.frame = CGRectMake(kPlayerSideMargin,
+			CGRectGetHeight(bounds) - kPlayerBottomInset - height,
+			CGRectGetWidth(bounds) - 2.0 * kPlayerSideMargin, height);
+		[self.view bringSubviewToFront:player];
 
-	- (void)updateVisibility
-	{
-		%orig;
-
-		if (sUpdatingVisibility || !PrintempsIsLockScreenView(self)) return;
-		if (self.showTransportControlsView) return;
-
-		sUpdatingVisibility = YES;
-		self.showArtworkView = YES;
-		self.showTransportControlsView = YES;
-		self.showTimeControlsView = YES;
-		self.showVolumeControlsView = NO;
-		self.headerView.showWaveform = NO;
-		self.headerView.showRoutingButton = NO;
-		self.useArtworkOverrideSize = YES;
-		self.artworkOverrideSize = CGSizeMake(kArtworkSize, kArtworkSize);
-		sUpdatingVisibility = NO;
-	}
-
-	- (CGSize)sizeThatFits: (CGSize)size
-	{
-		CGSize fitted = %orig;
-		if (PrintempsWantsCompactStyling(self)) fitted.height = PrintempsPlayerHeight();
-
-		return fitted;
+		PrintempsLog(@"player %@ content %d on a cover sheet of %@",
+			NSStringFromCGRect(player.frame), player.hasContent, NSStringFromCGRect(bounds));
 	}
 
 %end
 
-%hook MRUNowPlayingViewController
+// The stock widget is a live activity. Report where the cover sheet keeps it,
+// so it can be hidden once it can be told apart from the other activities.
+%hook CSActivityItemContentView
 
-	- (void)viewDidAppear: (BOOL)animated
+	- (void)layoutSubviews
 	{
 		%orig;
 
 		if (!sDebugLogging) return;
 
-		PrintempsLog(@"controller %@ context %ld layout %ld view %@",
-			NSStringFromClass(self.class), (long)self.context, (long)self.layout,
-			PrintempsAncestry(self.view));
+		static dispatch_once_t once;
+		dispatch_once(&once, ^{ PrintempsLogClassInterface(self.class); });
 
-		PrintempsLogChunked(@"nowPlaying", [self.view recursiveDescription]);
-	}
-
-%end
-
-%hook CSMediaControlsViewController
-
-	- (double)_preferredMediaRemoteHeight
-	{
-		return sCompactPlayerNeedsPrintempsHeight ? PrintempsPlayerHeight() : %orig;
-	}
-
-%end
-
-%hook MRUActivityNowPlayingView
-
-	- (void)layoutSubviews
-	{
-		%orig;
-
-		MRUActivityNowPlayingViewController *controller = PrintempsActivityController(self);
-		BOOL expanded = [controller isExpanded];
-
-		if (sDebugLogging) {
-			UIView *artworkView = self.artworkViews.firstObject;
-			PrintempsLog(@"activity expanded %d mode %ld waveform %d bounds %@ artwork %@ header %@ transport %@ time %@ in %@",
-				expanded, (long)controller.activeLayoutMode, self.showWaveform,
-				NSStringFromCGRect(self.bounds), NSStringFromCGRect(artworkView.frame),
-				NSStringFromCGRect(self.headerView.frame), NSStringFromCGRect(self.transportControlsView.frame),
-				NSStringFromCGRect(self.timeControlsView.frame), PrintempsAncestry(self));
-		}
-
-		// The expanded player is Control Center's now playing module, which is
-		// left stock.
-		if (!expanded) PrintempsLayoutActivityPlayer(self);
-	}
-
-%end
-
-%hook MRUCoverSheetViewController
-
-	- (void)updatePreferredContentSize
-	{
-		%orig;
-
-		PrintempsLog(@"cover sheet layout %ld size %@ now playing %@", (long)self.layout,
-			NSStringFromCGSize(self.preferredContentSize), self.nowPlayingViewController);
-	}
-
-%end
-
-// Catch-all probes. Whatever draws the lock screen player has to put a title on
-// screen and lay out some artwork, so these two report where they are, whoever
-// their owner turns out to be.
-%hook MRUNowPlayingLabelView
-
-	- (void)layoutSubviews
-	{
-		%orig;
-
-		if (sDebugLogging) PrintempsLog(@"label %@ in %@", NSStringFromCGRect(self.bounds), PrintempsAncestry(self));
-	}
-
-%end
-
-%hook MRUArtworkView
-
-	- (void)layoutSubviews
-	{
-		%orig;
-
-		if (sDebugLogging) PrintempsLog(@"artwork %@ style %ld in %@", NSStringFromCGRect(self.bounds), (long)self.style, PrintempsAncestry(self));
-	}
-
-%end
-
-%hook CSCoverSheetViewController
-
-	- (void)viewDidAppear: (BOOL)animated
-	{
-		%orig;
-
-		if (sDebugLogging) PrintempsLogChunked(@"coverSheet", [self.view recursiveDescription]);
+		PrintempsLog(@"activity item %@ %@", NSStringFromCGRect(self.frame), self.description);
 	}
 
 %end
@@ -691,18 +395,6 @@ static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
 	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL,
 		PrintempsPreferencesChanged, (__bridge CFStringRef)kPreferencesChangedNotification,
 		NULL, CFNotificationSuspensionBehaviorCoalesce);
-
-	if (sDebugLogging) {
-		NSMutableArray<NSString *> *present = [NSMutableArray array];
-		for (NSString *name in @[@"MRUNowPlayingView", @"MRUNowPlayingViewController",
-			@"MRUActivityNowPlayingViewController", @"MRUActivityArtworkView", @"MRPlatterViewController",
-			@"MRUSessionNowPlayingView", @"CSMediaControlsViewController", @"CSMediaControlsView",
-			@"MRUActivityNowPlayingView", @"MRUCoverSheetViewController", @"MRUCoverSheetView",
-			@"CSCoverSheetViewController", @"SBDashBoardViewController"]) {
-			if (NSClassFromString(name) != nil) [present addObject:name];
-		}
-		PrintempsLog(@"classes present: %@", [present componentsJoinedByString:@", "]);
-	}
 
 	if (@available(iOS 16.0, *)) {
 		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 16 hooks, built " __DATE__ " " __TIME__, UIDevice.currentDevice.systemVersion]);

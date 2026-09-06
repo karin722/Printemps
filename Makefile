@@ -23,7 +23,7 @@ include $(THEOS)/makefiles/common.mk
 # export ARCHS = x86_64
 
 TWEAK_NAME = Printemps
-$(TWEAK_NAME)_FILES = Tweak.xm
+$(TWEAK_NAME)_FILES = Tweak.xm PrintempsPlayerView.mm
 $(TWEAK_NAME)_FRAMEWORKS = UIKit
 $(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wc++11-extensions -std=c++11
 

@@ -1,17 +1,14 @@
 #import <UIKit/UIKit.h>
 
-@interface UIView (Printemps)
-- (NSString *)recursiveDescription;
-@end
-
-// MediaControls.framework (private).
+// MediaControls.framework (private), as it looks on iOS 14 and 15.
 //
-// The lock screen player changed shape in iOS 16:
-//   * `context` was removed from the leaf views, they only keep `layout`
-//   * `MRUNowPlayingControlsView` disappeared, its subviews moved to `MRUNowPlayingView`
-//   * the scrubber's hand made `knobView` was replaced by an `MRUSlider`
-// Both shapes are declared here, so only call the accessors that exist on the
-// firmware you are running on (see the %group split in Tweak.xm).
+// iOS 16 reshaped all of it: `context` was dropped from the leaf views in
+// favour of `layout`, `MRUNowPlayingControlsView` was folded into
+// `MRUNowPlayingView`, and the scrubber's hand made `knobView` became an
+// `MRUSlider`. None of that matters for the lock screen any more, because iOS
+// 16 draws the lock screen player out of process and leaves SpringBoard with
+// nothing but a hosted layer, so Printemps draws its own there. These
+// declarations are only used by the iOS 14/15 hooks.
 
 @interface MRUNowPlayingLabelView : UIView
 @property (nonatomic, assign) NSInteger context; // iOS 14/15 only
@@ -54,61 +51,9 @@
 @property (nonatomic, retain) UIView *slider;    // iOS 16
 @end
 
-// iOS 16. Hosts every part of the player and decides what is visible.
-@interface MRUNowPlayingView : UIView
-@property (nonatomic, assign) NSInteger context;
-@property (nonatomic, assign) NSInteger layout;
-@property (nonatomic, assign) BOOL showArtworkView;
-@property (nonatomic, assign) BOOL showTimeControlsView;
-@property (nonatomic, assign) BOOL showTransportControlsView;
-@property (nonatomic, assign) BOOL showVolumeControlsView;
-@property (nonatomic, assign) BOOL useArtworkOverrideSize;
-@property (nonatomic, assign) CGSize artworkOverrideSize;
-@property (nonatomic, assign) UIEdgeInsets contentEdgeInsets;
-@property (nonatomic, readonly) MRUArtworkView *artworkView;
-@property (nonatomic, readonly) MRUNowPlayingHeaderView *headerView;
-@property (nonatomic, readonly) MRUNowPlayingTimeControlsView *timeControlsView;
-@property (nonatomic, readonly) MRUNowPlayingTransportControlsView *transportControlsView;
-@property (nonatomic, readonly) UIView *volumeControlsView;
-@end
-
-@interface MRUNowPlayingViewController : UIViewController
-@property (nonatomic, assign) NSInteger context;
-@property (nonatomic, assign) NSInteger layout;
-@end
-
-// iOS 16.1 draws the collapsed lock screen player as a live activity, out of a
-// separate set of classes. The expanded player you get by tapping it is Control
-// Center's now playing module, which is left alone.
-@interface MRUActivityNowPlayingHeaderView : UIView
-@property (nonatomic, readonly) CGFloat labelInset;
-@property (nonatomic, readonly) MRUNowPlayingLabelView *labelView;
-@end
-
-@interface MRUActivityNowPlayingView : UIView
-@property (nonatomic, readonly) NSArray *artworkViews;
-@property (nonatomic, readonly) UIView *equalizerView;
-@property (nonatomic, readonly) MRUActivityNowPlayingHeaderView *headerView;
-@property (nonatomic, readonly) UIView *leadingView;
-@property (nonatomic, readonly) UIView *trailingView;
-@property (nonatomic, assign) BOOL showWaveform;
-@property (nonatomic, readonly) MRUNowPlayingTimeControlsView *timeControlsView;
-@property (nonatomic, readonly) MRUNowPlayingTransportControlsView *transportControlsView;
-@property (nonatomic, readonly) UIView *waveformView;
-@end
-
-@interface MRUActivityNowPlayingViewController : UIViewController
-@property (nonatomic, assign) NSInteger activeLayoutMode;
-@property (nonatomic, readonly) NSInteger preferredLayoutMode;
-@property (nonatomic, readonly) NSInteger maximumLayoutMode;
-@property (nonatomic, readonly) CGFloat preferredHeightForBottomSafeArea;
-- (BOOL)isExpanded;
-@end
-
-@interface MRUCoverSheetViewController : UIViewController
-@property (nonatomic, readonly) NSInteger layout;
-@property (nonatomic, retain) MRUNowPlayingViewController *nowPlayingViewController;
-@end
-
 @interface CSCoverSheetViewController : UIViewController
+@end
+
+// The lock screen's live activity item. Its content is drawn out of process.
+@interface CSActivityItemContentView : UIView
 @end

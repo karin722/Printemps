@@ -14,13 +14,19 @@ Very small music widget
 
 | iOS | What Printemps changes |
 | --- | --- |
-| 14.0 – 15.x | The lock screen player |
-| 16.x | The **collapsed** lock screen player. The expanded one you get by tapping the artwork is left stock. |
+| 14.0 – 15.x | Restyles the stock lock screen player in place |
+| 16.x | Draws its own player on the lock screen. The expanded player you get by tapping the artwork is Control Center's, and is left stock. |
 
-iOS 16 moved the lock screen player around: `context` is gone from the leaf
-views, `MRUNowPlayingControlsView` was folded into `MRUNowPlayingView` and the
-scrubber became an `MRUSlider`. The two firmware families therefore get their
-own hooks, picked at load time in `%ctor`.
+The two firmware families work completely differently, and `%ctor` picks one at
+load time.
+
+On iOS 14 and 15 the lock screen player is a `MRUNowPlayingView` inside
+SpringBoard, so Printemps moves its parts around. iOS 16 turned that player into
+a live activity drawn in another process: the cover sheet holds a
+`CSActivityItemContentView` whose content arrives as a hosted scene layer, and
+there is not a single MediaControls view left in SpringBoard to restyle.
+Printemps therefore builds its own player from MediaRemote and puts it on the
+cover sheet.
 
 ## Install
 
