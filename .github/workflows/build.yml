@@ -30,9 +30,11 @@ jobs:
         uses: Randomblock1/theos-action@main
 
       - name: Build package
+        # Every run gets its own version, so installing one over another is an
+        # upgrade rather than something apt skips as already installed.
         run: |
           rm -rf packages
-          make package FINALPACKAGE=1
+          make package FINALPACKAGE=1 PACKAGE_VERSION=$(grep -i "^Version:" control | cut -d" " -f2)-${{ github.run_number }}
 
       - name: Upload package
         uses: actions/upload-artifact@v4
