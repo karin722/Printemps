@@ -36,10 +36,14 @@ and set `Architecture: iphoneos-arm` in `control`.
 
 ## Reporting a layout problem
 
-Turn on *debug logging* in the Printemps settings, respring, then read the
-system log for `[Printemps]`. It prints the player's `layout` and `context`
-values and the frames it applied, which is what the layout constants at the top
-of `Tweak.xm` are tuned against.
+Turn on *debug logging* in the Printemps settings, respring, then read
+`/var/mobile/Library/Logs/Printemps.log`. It records the player's `layout` and
+`context` values, the view controllers it sits under and the frames that were
+applied, which is what the layout constants at the top of `Tweak.xm` are tuned
+against. The same lines go to the system log.
+
+Printemps always logs one line when it is injected, whether or not debug
+logging is on, so an empty system log means the tweak was never loaded.
 
 ## License
 [MIT](https://github.com/karin722/Printemps/blob/main/LICENSE)

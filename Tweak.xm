@@ -27,7 +27,46 @@ static void PrintempsPreferencesChanged(CFNotificationCenterRef center, void *ob
 }
 
 #define PrintempsLog(fmt, ...) \
-	do { if (sDebugLogging) NSLog(@"[Printemps] " fmt, ##__VA_ARGS__); } while (0)
+	do { if (sDebugLogging) PrintempsLogMessage([NSString stringWithFormat:fmt, ##__VA_ARGS__]); } while (0)
+
+// The unified logging tools are hit and miss on a jailbroken device, so debug
+// lines are also appended to a file that can just be read with cat.
+static NSString * const kLogFilePath = @"/var/mobile/Library/Logs/Printemps.log";
+static const unsigned long long kLogFileSizeLimit = 256 * 1024;
+
+static void PrintempsAppendToLogFile(NSString *message)
+{
+	static NSDateFormatter *formatter;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		formatter = [NSDateFormatter new];
+		formatter.dateFormat = @"HH:mm:ss.SSS";
+	});
+
+	NSFileManager *fileManager = NSFileManager.defaultManager;
+	if ([fileManager attributesOfItemAtPath:kLogFilePath error:NULL].fileSize > kLogFileSizeLimit) {
+		[fileManager removeItemAtPath:kLogFilePath error:NULL];
+	}
+
+	NSString *line = [NSString stringWithFormat:@"%@ %@\n", [formatter stringFromDate:NSDate.date], message];
+	NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
+
+	NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:kLogFilePath];
+	if (handle == nil) {
+		[data writeToFile:kLogFilePath atomically:YES];
+		return;
+	}
+
+	[handle seekToEndOfFile];
+	[handle writeData:data];
+	[handle closeFile];
+}
+
+static void PrintempsLogMessage(NSString *message)
+{
+	NSLog(@"[Printemps] %@", message);
+	if (sDebugLogging) PrintempsAppendToLogFile(message);
+}
 
 #pragma mark - Metrics
 
@@ -460,10 +499,10 @@ static void PrintempsLayoutCompactPlayer(MRUNowPlayingView *view)
 		NULL, CFNotificationSuspensionBehaviorCoalesce);
 
 	if (@available(iOS 16.0, *)) {
-		PrintempsLog(@"loaded on iOS %@, using the iOS 16 hooks", UIDevice.currentDevice.systemVersion);
+		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 16 hooks", UIDevice.currentDevice.systemVersion]);
 		%init(Modern);
 	} else {
-		PrintempsLog(@"loaded on iOS %@, using the iOS 14/15 hooks", UIDevice.currentDevice.systemVersion);
+		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 14/15 hooks", UIDevice.currentDevice.systemVersion]);
 		%init(Legacy);
 
 		if (@available(iOS 15.0, *)) {
