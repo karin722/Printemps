@@ -5,6 +5,8 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [macos-latest]
@@ -30,14 +32,25 @@ jobs:
         uses: Randomblock1/theos-action@main
 
       - name: Build package
-        # Every run gets its own version, so installing one over another is an
-        # upgrade rather than something apt skips as already installed.
+        # A tag builds the version the control file names. Everything else gets
+        # the run number appended, so installing one test build over another is
+        # an upgrade rather than something apt skips as already installed.
         run: |
           rm -rf packages
-          make package FINALPACKAGE=1 PACKAGE_VERSION=$(grep -i "^Version:" control | cut -d" " -f2)-${{ github.run_number }}
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            make package FINALPACKAGE=1
+          else
+            make package FINALPACKAGE=1 PACKAGE_VERSION=$(grep -i "^Version:" control | cut -d" " -f2)-${{ github.run_number }}
+          fi
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: "Package built by ${{ matrix.os }}"
           path: ${{ github.workspace }}/packages/*.deb
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" packages/*.deb --generate-notes --title "${GITHUB_REF_NAME}"
