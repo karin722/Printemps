@@ -1,6 +1,6 @@
 name: CI
 
-on: [push]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
@@ -10,7 +10,7 @@ jobs:
         os: [macos-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -20,7 +20,7 @@ jobs:
 
       - name: Use cache
         id: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/theos
           key: ${{ runner.os }}-${{ env.upstream_heads }}
@@ -31,11 +31,11 @@ jobs:
 
       - name: Build package
         run: |
-          rm -f packages/*
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          rm -rf packages
+          make package FINALPACKAGE=1
 
       - name: Upload package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: "Package built by ${{ matrix.os }}"
           path: ${{ github.workspace }}/packages/*.deb
