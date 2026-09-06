@@ -109,3 +109,6 @@
 @property (nonatomic, readonly) NSInteger layout;
 @property (nonatomic, retain) MRUNowPlayingViewController *nowPlayingViewController;
 @end
+
+@interface CSCoverSheetViewController : UIViewController
+@end

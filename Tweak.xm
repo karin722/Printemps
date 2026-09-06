@@ -33,7 +33,7 @@ static void PrintempsPreferencesChanged(CFNotificationCenterRef center, void *ob
 // lines are also appended to a file that can just be read with cat.
 static NSString * const kLogFilePath = @"/var/mobile/Library/Logs/Printemps.log";
 static const unsigned long long kLogFileSizeLimit = 256 * 1024;
-static const NSUInteger kHierarchyDumpLimit = 8000;
+static const NSUInteger kHierarchyDumpLimit = 24000;
 
 static void PrintempsAppendToLogFile(NSString *message)
 {
@@ -67,6 +67,18 @@ static void PrintempsLogMessage(NSString *message)
 {
 	NSLog(@"[Printemps] %@", message);
 	if (sDebugLogging) PrintempsAppendToLogFile(message);
+}
+
+// A long string split over several log lines, so nothing is lost to a cap.
+static void PrintempsLogChunked(NSString *label, NSString *text)
+{
+	static const NSUInteger chunkLength = 1500;
+	NSString *capped = text.length > kHierarchyDumpLimit ? [text substringToIndex:kHierarchyDumpLimit] : text;
+
+	for (NSUInteger offset = 0, part = 0; offset < capped.length; offset += chunkLength, part++) {
+		NSRange range = NSMakeRange(offset, MIN(chunkLength, capped.length - offset));
+		PrintempsLog(@"%@[%lu] %@", label, (unsigned long)part, [capped substringWithRange:range]);
+	}
 }
 
 #pragma mark - Metrics
@@ -583,9 +595,7 @@ static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
 			NSStringFromClass(self.class), (long)self.context, (long)self.layout,
 			PrintempsAncestry(self.view));
 
-		NSString *hierarchy = [self.view recursiveDescription];
-		PrintempsLog(@"hierarchy %@", hierarchy.length > kHierarchyDumpLimit
-			? [hierarchy substringToIndex:kHierarchyDumpLimit] : hierarchy);
+		PrintempsLogChunked(@"nowPlaying", [self.view recursiveDescription]);
 	}
 
 %end
@@ -636,6 +646,42 @@ static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
 
 %end
 
+// Catch-all probes. Whatever draws the lock screen player has to put a title on
+// screen and lay out some artwork, so these two report where they are, whoever
+// their owner turns out to be.
+%hook MRUNowPlayingLabelView
+
+	- (void)layoutSubviews
+	{
+		%orig;
+
+		if (sDebugLogging) PrintempsLog(@"label %@ in %@", NSStringFromCGRect(self.bounds), PrintempsAncestry(self));
+	}
+
+%end
+
+%hook MRUArtworkView
+
+	- (void)layoutSubviews
+	{
+		%orig;
+
+		if (sDebugLogging) PrintempsLog(@"artwork %@ style %ld in %@", NSStringFromCGRect(self.bounds), (long)self.style, PrintempsAncestry(self));
+	}
+
+%end
+
+%hook CSCoverSheetViewController
+
+	- (void)viewDidAppear: (BOOL)animated
+	{
+		%orig;
+
+		if (sDebugLogging) PrintempsLogChunked(@"coverSheet", [self.view recursiveDescription]);
+	}
+
+%end
+
 %end // Modern
 
 #pragma mark - Entry point
@@ -651,7 +697,8 @@ static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
 		for (NSString *name in @[@"MRUNowPlayingView", @"MRUNowPlayingViewController",
 			@"MRUActivityNowPlayingViewController", @"MRUActivityArtworkView", @"MRPlatterViewController",
 			@"MRUSessionNowPlayingView", @"CSMediaControlsViewController", @"CSMediaControlsView",
-			@"MRUActivityNowPlayingView", @"MRUCoverSheetViewController", @"MRUCoverSheetView"]) {
+			@"MRUActivityNowPlayingView", @"MRUCoverSheetViewController", @"MRUCoverSheetView",
+			@"CSCoverSheetViewController", @"SBDashBoardViewController"]) {
 			if (NSClassFromString(name) != nil) [present addObject:name];
 		}
 		PrintempsLog(@"classes present: %@", [present componentsJoinedByString:@", "]);
