@@ -12,21 +12,24 @@ Very small music widget
 
 ## Supported firmwares
 
-| iOS | What Printemps changes |
-| --- | --- |
-| 14.0 – 15.x | Restyles the stock lock screen player in place |
-| 16.x | Draws its own player on the lock screen. The expanded player you get by tapping the artwork is Control Center's, and is left stock. |
+Released for **iOS 16**, tested on 16.6.1. Printemps draws its own player on the
+lock screen; the expanded player you get by tapping the artwork is Control
+Center's, and is left stock.
 
-The two firmware families work completely differently, and `%ctor` picks one at
-load time.
+iOS 16 turned the lock screen player into a live activity drawn in another
+process: the cover sheet holds a `CSActivityItemContentView` whose content
+arrives as a hosted scene layer, and there is not a single MediaControls view
+left in SpringBoard to restyle. Printemps therefore builds its own player from
+MediaRemote, puts it inside that activity item and sizes the card around it.
+Only the activity in the `com.apple.MediaRemoteUI` group is touched, so other
+live activities are left alone.
 
-On iOS 14 and 15 the lock screen player is a `MRUNowPlayingView` inside
-SpringBoard, so Printemps moves its parts around. iOS 16 turned that player into
-a live activity drawn in another process: the cover sheet holds a
-`CSActivityItemContentView` whose content arrives as a hosted scene layer, and
-there is not a single MediaControls view left in SpringBoard to restyle.
-Printemps therefore builds its own player from MediaRemote and puts it on the
-cover sheet.
+The iOS 14 and 15 code paths are still here, and `%ctor` picks between them at
+load time. There the lock screen player is a `MRUNowPlayingView` inside
+SpringBoard and Printemps restyles it in place, the way it always did. The
+released package does not install below iOS 16 because those paths are no
+longer tested, but they still build: drop the rootless scheme as described below
+for a rootful iOS 14/15 package.
 
 ## Install
 
