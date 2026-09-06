@@ -705,10 +705,10 @@ static void PrintempsLayoutActivityPlayer(MRUActivityNowPlayingView *view)
 	}
 
 	if (@available(iOS 16.0, *)) {
-		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 16 hooks", UIDevice.currentDevice.systemVersion]);
+		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 16 hooks, built " __DATE__ " " __TIME__, UIDevice.currentDevice.systemVersion]);
 		%init(Modern);
 	} else {
-		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 14/15 hooks", UIDevice.currentDevice.systemVersion]);
+		PrintempsLogMessage([NSString stringWithFormat:@"loaded on iOS %@, using the iOS 14/15 hooks, built " __DATE__ " " __TIME__, UIDevice.currentDevice.systemVersion]);
 		%init(Legacy);
 
 		if (@available(iOS 15.0, *)) {
