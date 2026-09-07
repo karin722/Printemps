@@ -8,12 +8,29 @@ static NSString * const kPreferencesDomain = @"com.tako3s.PrintempsPrefs";
 static NSString * const kPreferencesChangedNotification = @"com.tako3s.printemps/preferencesChanged";
 
 // Cached so that the layout hooks, which run on every pass, never touch cfprefs.
+static BOOL sEnabled = YES;
+static BOOL sSharingEnabled = YES;
 static BOOL sHidePrevious;
 static BOOL sDebugLogging;
+
+// The item currently on the lock screen, so a preference can be applied without
+// waiting for whatever would have laid it out next.
+static __weak UIView *sActiveItem;
+
+static void PrintempsInvalidateList(UIView *view);
+
+// -boolForKey: cannot tell "off" from "never set", and both of these default on.
+static BOOL PrintempsBoolPreference(NSUserDefaults *preferences, NSString *key, BOOL fallback)
+{
+	NSNumber *value = [preferences objectForKey:key];
+	return value == nil ? fallback : value.boolValue;
+}
 
 static void PrintempsLoadPreferences(void)
 {
 	NSUserDefaults *preferences = [[NSUserDefaults alloc] initWithSuiteName:kPreferencesDomain];
+	sEnabled = PrintempsBoolPreference(preferences, @"enabled", YES);
+	sSharingEnabled = PrintempsBoolPreference(preferences, @"sharing", YES);
 	sHidePrevious = [preferences boolForKey:@"hidePrevious"];
 	sDebugLogging = [preferences boolForKey:@"debugLogging"];
 }
@@ -21,6 +38,12 @@ static void PrintempsLoadPreferences(void)
 static void PrintempsPreferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo)
 {
 	PrintempsLoadPreferences();
+
+	UIView *item = sActiveItem;
+	if (item == nil) return;
+
+	[item setNeedsLayout];
+	PrintempsInvalidateList(item);
 }
 
 #define PrintempsLog(fmt, ...) \
@@ -374,7 +397,10 @@ static void PrintempsInvalidateList(UIView *view)
 
 		player.hidesPreviousButton = sHidePrevious;
 
-		BOOL takeOver = player.hasContent && PrintempsIsNowPlayingActivity(self);
+		sActiveItem = self;
+		player.sharingEnabled = sSharingEnabled;
+
+		BOOL takeOver = sEnabled && player.hasContent && PrintempsIsNowPlayingActivity(self);
 		for (UIView *subview in self.subviews) {
 			if (subview != player) subview.hidden = takeOver;
 		}
@@ -412,7 +438,7 @@ static void PrintempsInvalidateList(UIView *view)
 		CGSize fitted = %orig;
 
 		PrintempsPlayerView *player = objc_getAssociatedObject(self, kPrintempsPlayerKey);
-		if (!player.hasContent || !PrintempsIsNowPlayingActivity(self)) return fitted;
+		if (!sEnabled || !player.hasContent || !PrintempsIsNowPlayingActivity(self)) return fitted;
 
 		fitted.height = PrintempsPlayerView.preferredHeight + 2.0 * kPlayerInset;
 		return fitted;

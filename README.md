@@ -34,6 +34,9 @@ live activities are left alone.
 - Hold the artwork to share `[title] - [artist] #nowplaying` with the artwork,
   once the device has authenticated
 
+Sharing can be turned off on its own, and Printemps as a whole can be turned off
+to get the stock widget back without uninstalling.
+
 ## Install
 
 - `make package`

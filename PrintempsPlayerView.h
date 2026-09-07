@@ -12,6 +12,9 @@
 
 @property (nonatomic, assign) BOOL hidesPreviousButton;
 
+// Holding the artwork opens the share sheet.
+@property (nonatomic, assign) BOOL sharingEnabled;
+
 // NO while nothing is playing, so the host can leave the lock screen alone.
 @property (nonatomic, readonly) BOOL hasContent;
 

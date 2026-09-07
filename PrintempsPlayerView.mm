@@ -147,6 +147,7 @@ static const CGFloat kShareWindowLevel = 1234.0;
 	if (self == nil) return nil;
 
 	PrintempsLoadMediaRemote();
+	_sharingEnabled = YES;
 
 	_artworkView = [UIImageView new];
 	_artworkView.contentMode = UIViewContentModeScaleAspectFill;
@@ -446,8 +447,8 @@ static const CGFloat kShareWindowLevel = 1234.0;
 
 - (void)handleArtworkLongPress: (UILongPressGestureRecognizer *)recognizer
 {
-	if (recognizer.state != UIGestureRecognizerStateBegan || !self.hasContent) return;
-	if (self.shareWindow != nil) return;
+	if (!self.sharingEnabled || recognizer.state != UIGestureRecognizerStateBegan) return;
+	if (!self.hasContent || self.shareWindow != nil) return;
 
 	// Everything the sheet would share is already on the lock screen, but
 	// sharing it is not something somebody who picked the phone up should be
