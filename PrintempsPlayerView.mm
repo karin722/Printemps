@@ -82,6 +82,8 @@ static const CGFloat kSubtitleHeight = 18.0;
 // A three point bar is not something a finger can hit, so the gestures get a
 // taller area of their own.
 static const CGFloat kProgressTouchHeight = 18.0;
+// Above the cover sheet, so the share sheet is not buried under the lock screen.
+static const CGFloat kShareWindowLevel = 1234.0;
 
 @interface PrintempsPlayerView ()
 
@@ -99,6 +101,7 @@ static const CGFloat kProgressTouchHeight = 18.0;
 @property (nonatomic, copy) NSString *currentTitle;
 @property (nonatomic, copy) NSString *currentArtist;
 @property (nonatomic, assign, getter=isScrubbing) BOOL scrubbing;
+@property (nonatomic, retain) UIWindow *shareWindow;
 
 @property (nonatomic, assign) BOOL playing;
 @property (nonatomic, assign) double elapsedTime;
@@ -421,6 +424,13 @@ static const CGFloat kProgressTouchHeight = 18.0;
 - (void)handleArtworkLongPress: (UILongPressGestureRecognizer *)recognizer
 {
 	if (recognizer.state != UIGestureRecognizerStateBegan || !self.hasContent) return;
+	if (self.shareWindow != nil) return;
+
+	// Presenting into SpringBoard's own cover sheet controller shows nothing and
+	// takes SpringBoard down with it, so the sheet goes in a window of our own.
+	// It has to belong to a window scene, or iOS never puts it on screen.
+	UIWindowScene *scene = self.window.windowScene;
+	if (scene == nil) return;
 
 	NSMutableArray<NSString *> *parts = [NSMutableArray array];
 	if (self.currentTitle.length > 0) [parts addObject:self.currentTitle];
@@ -430,27 +440,36 @@ static const CGFloat kProgressTouchHeight = 18.0;
 		[NSString stringWithFormat:@"%@ #nowplaying", [parts componentsJoinedByString:@" - "]]];
 	if (self.artworkView.image != nil) [items addObject:self.artworkView.image];
 
-	UIViewController *presenter = [self presentingViewController];
-	if (presenter == nil) return;
+	UIWindow *window = [[UIWindow alloc] initWithWindowScene:scene];
+	window.frame = scene.screen.bounds;
+	window.windowLevel = kShareWindowLevel;
+	window.rootViewController = [UIViewController new];
+	[window makeKeyAndVisible];
+	self.shareWindow = window;
 
 	UIActivityViewController *sheet = [[UIActivityViewController alloc] initWithActivityItems:items
 		applicationActivities:nil];
-	sheet.popoverPresentationController.sourceView = self.artworkView;
-	sheet.popoverPresentationController.sourceRect = self.artworkView.bounds;
-	[presenter presentViewController:sheet animated:YES completion:nil];
+	sheet.popoverPresentationController.sourceView = window.rootViewController.view;
+	sheet.popoverPresentationController.sourceRect = window.rootViewController.view.bounds;
+
+	__weak __typeof(self) weakSelf = self;
+	sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *returned, NSError *error) {
+		[weakSelf dismissShareWindow];
+	};
+
+	[window.rootViewController presentViewController:sheet animated:YES completion:nil];
 }
 
-- (UIViewController *)presentingViewController
+- (void)dismissShareWindow
 {
-	for (UIResponder *responder = self; responder != nil; responder = responder.nextResponder) {
-		if (![responder isKindOfClass:UIViewController.class]) continue;
+	UIWindow *window = self.shareWindow;
+	if (window == nil) return;
 
-		UIViewController *controller = (UIViewController *)responder;
-		while (controller.presentedViewController != nil) controller = controller.presentedViewController;
-		return controller;
-	}
-
-	return nil;
+	self.shareWindow = nil;
+	[window.rootViewController dismissViewControllerAnimated:YES completion:^{
+		window.hidden = YES;
+		window.rootViewController = nil;
+	}];
 }
 
 #pragma mark - Commands
