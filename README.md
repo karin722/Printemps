@@ -12,9 +12,10 @@ Very small music widget
 
 ## Supported firmwares
 
-Released for **iOS 16**, tested on 16.6.1. Printemps draws its own player on the
-lock screen; the expanded player you get by tapping the artwork is Control
-Center's, and is left stock.
+iOS 16 only, tested on 16.6.1.
+
+Printemps draws its own player on the lock screen. The expanded player you get
+by tapping the artwork is Control Center's, and is left stock.
 
 iOS 16 turned the lock screen player into a live activity drawn in another
 process: the cover sheet holds a `CSActivityItemContentView` whose content
@@ -24,32 +25,29 @@ MediaRemote, puts it inside that activity item and sizes the card around it.
 Only the activity in the `com.apple.MediaRemoteUI` group is touched, so other
 live activities are left alone.
 
-The iOS 14 and 15 code paths are still here, and `%ctor` picks between them at
-load time. There the lock screen player is a `MRUNowPlayingView` inside
-SpringBoard and Printemps restyles it in place, the way it always did. The
-released package does not install below iOS 16 because those paths are no
-longer tested, but they still build: drop the rootless scheme as described below
-for a rootful iOS 14/15 package.
+## What it does
+
+- Artwork, title, artist, transport controls and a progress bar, in the space
+  the stock widget took
+- Long titles scroll instead of being cut off
+- Drag or tap the progress bar to seek
+- Hold the artwork to share `[title] - [artist] #nowplaying` with the artwork
 
 ## Install
 
 - `make package`
 
-Needs `iPhoneOS16.5.sdk` from [theos/sdks](https://github.com/theos/sdks): it is
-the oldest SDK that can build the iOS 16 code paths, and unlike Xcode's own SDK
-it carries the PrivateFrameworks the preference bundle links against.
-
-Packages are built with the rootless scheme. For a rootful build, drop
-`THEOS_PACKAGE_SCHEME=rootless` from `Makefile` and `PrintempsPrefs/Makefile`
-and set `Architecture: iphoneos-arm` in `control`.
+Needs `iPhoneOS16.5.sdk` from [theos/sdks](https://github.com/theos/sdks).
+Unlike Xcode's own SDK it carries the PrivateFrameworks the preference bundle
+links against. Packages are built with the rootless scheme.
 
 ## Reporting a layout problem
 
 Turn on *debug logging* in the Printemps settings, respring, then read
-`/var/mobile/Library/Logs/Printemps.log`. It records the player's `layout` and
-`context` values, the view controllers it sits under and the frames that were
-applied, which is what the layout constants at the top of `Tweak.xm` are tuned
-against. The same lines go to the system log.
+`/var/mobile/Library/Logs/Printemps.log`. It records which activity group the
+lock screen handed Printemps and the frames it applied, which is what the layout
+constants at the top of `Tweak.xm` are tuned against. The same lines go to the
+system log.
 
 Printemps always logs one line when it is injected, whether or not debug
 logging is on, so an empty system log means the tweak was never loaded.

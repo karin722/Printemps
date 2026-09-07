@@ -30,8 +30,6 @@
 
 @interface MRUArtworkView : UIView
 @property (nonatomic, assign) NSInteger style;
-@property (nonatomic, retain) UIView *iconView;
-@property (nonatomic, retain) UIView *iconShadowView;
 @end
 
 @interface MRUNowPlayingHeaderView : UIView
@@ -47,7 +45,6 @@
 @property (nonatomic, assign) NSInteger layout;  // iOS 16
 @property (nonatomic, retain) UIView *elapsedTimeLabel;
 @property (nonatomic, retain) UIView *remainingTimeLabel;
-@property (nonatomic, retain) UIView *knobView;  // iOS 14/15 only
 @property (nonatomic, retain) UIView *slider;    // iOS 16
 @end
 

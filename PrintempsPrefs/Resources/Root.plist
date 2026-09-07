@@ -8,28 +8,6 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>hide knob from time slider</string>
-			<key>footerText</key>
-			<string>iOS 15 and below. iOS 16 draws the slider without a knob already.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<false/>
-			<key>defaults</key>
-			<string>com.tako3s.PrintempsPrefs</string>
-			<key>key</key>
-			<string>showKnob</string>
-			<key>label</key>
-			<string>Enable</string>
-			<key>PostNotification</key>
-			<string>com.tako3s.printemps/preferencesChanged</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
 			<string>hide previous button</string>
 		</dict>
 		<dict>
@@ -41,26 +19,6 @@
 			<string>com.tako3s.PrintempsPrefs</string>
 			<key>key</key>
 			<string>hidePrevious</string>
-			<key>label</key>
-			<string>Enable</string>
-			<key>PostNotification</key>
-			<string>com.tako3s.printemps/preferencesChanged</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>hide play app icon</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<false/>
-			<key>defaults</key>
-			<string>com.tako3s.PrintempsPrefs</string>
-			<key>key</key>
-			<string>hideAppIcon</string>
 			<key>label</key>
 			<string>Enable</string>
 			<key>PostNotification</key>

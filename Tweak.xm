@@ -8,17 +8,13 @@ static NSString * const kPreferencesDomain = @"com.tako3s.PrintempsPrefs";
 static NSString * const kPreferencesChangedNotification = @"com.tako3s.printemps/preferencesChanged";
 
 // Cached so that the layout hooks, which run on every pass, never touch cfprefs.
-static BOOL sHideKnob;      // stored under the historical "showKnob" key
 static BOOL sHidePrevious;
-static BOOL sHideAppIcon;
 static BOOL sDebugLogging;
 
 static void PrintempsLoadPreferences(void)
 {
 	NSUserDefaults *preferences = [[NSUserDefaults alloc] initWithSuiteName:kPreferencesDomain];
-	sHideKnob = [preferences boolForKey:@"showKnob"];
 	sHidePrevious = [preferences boolForKey:@"hidePrevious"];
-	sHideAppIcon = [preferences boolForKey:@"hideAppIcon"];
 	sDebugLogging = [preferences boolForKey:@"debugLogging"];
 }
 
@@ -79,7 +75,6 @@ static void PrintempsLogMessage(NSString *message)
 //   +--------------------------------------------------+
 //
 static const CGFloat kPlayerHeight = 118.0;
-static const CGFloat kPlayerHeightWithoutKnob = 117.0;
 
 static const CGFloat kArtworkSize = 70.0;
 static const CGFloat kArtworkTrailingInsetRTL = 102.0;
@@ -113,11 +108,6 @@ static const CGFloat kTimeControlsOriginY = 60.0;
 // Width of the media controls area, published by the CoverSheet hooks and read
 // back by the iOS 14/15 layout hooks, which only ever see their own subview.
 static CGFloat sPlayerWidth;
-
-static CGFloat PrintempsPlayerHeight(void)
-{
-	return sHideKnob ? kPlayerHeightWithoutKnob : kPlayerHeight;
-}
 
 static BOOL PrintempsIsRightToLeft(UIView *view)
 {
@@ -169,9 +159,6 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 			if (PrintempsIsRightToLeft(self)) {
 				frame.origin.x = sPlayerWidth - kArtworkTrailingInsetRTL;
 			}
-			// hide app icon
-			self.iconView.hidden = sHideAppIcon;
-			self.iconShadowView.hidden = sHideAppIcon;
 		}
 		%orig;
 	}
@@ -220,7 +207,6 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 			// tweak's options back off restores the stock player.
 			self.elapsedTimeLabel.hidden = true;
 			self.remainingTimeLabel.hidden = true;
-			self.knobView.hidden = sHideKnob;
 		}
 		%orig;
 	}
@@ -236,7 +222,7 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 	- (CGRect)_suggestedFrameForMediaControls
 	{
 		CGRect frame = %orig;
-		frame.size.height = PrintempsPlayerHeight();
+		frame.size.height = kPlayerHeight;
 		sPlayerWidth = frame.size.width;
 
 		return frame;
@@ -251,7 +237,7 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 	- (CGRect)_suggestedFrameForMediaControls
 	{
 		CGRect frame = %orig;
-		frame.size.height = PrintempsPlayerHeight();
+		frame.size.height = kPlayerHeight;
 		sPlayerWidth = frame.size.width;
 
 		return frame;
@@ -259,7 +245,7 @@ static BOOL PrintempsIsRightToLeft(UIView *view)
 
 	- (double)_preferredMediaRemoteHeight
 	{
-		return PrintempsPlayerHeight();
+		return kPlayerHeight;
 	}
 %end
 %end

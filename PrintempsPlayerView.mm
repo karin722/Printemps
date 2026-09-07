@@ -9,6 +9,7 @@
 typedef void (*MRGetNowPlayingInfoFunction)(dispatch_queue_t queue, void (^handler)(NSDictionary *information));
 typedef void (*MRRegisterForNotificationsFunction)(dispatch_queue_t queue);
 typedef void (*MRSendCommandFunction)(int command, NSDictionary *userInfo);
+typedef void (*MRSetElapsedTimeFunction)(double elapsedTime);
 
 typedef NS_ENUM(int, PrintempsMediaCommand) {
 	PrintempsMediaCommandTogglePlayPause = 2,
@@ -19,6 +20,7 @@ typedef NS_ENUM(int, PrintempsMediaCommand) {
 static MRGetNowPlayingInfoFunction PrintempsGetNowPlayingInfo;
 static MRRegisterForNotificationsFunction PrintempsRegisterForNotifications;
 static MRSendCommandFunction PrintempsSendCommand;
+static MRSetElapsedTimeFunction PrintempsSetElapsedTime;
 
 static void PrintempsLoadMediaRemote(void)
 {
@@ -27,6 +29,7 @@ static void PrintempsLoadMediaRemote(void)
 		PrintempsGetNowPlayingInfo = (MRGetNowPlayingInfoFunction)dlsym(RTLD_DEFAULT, "MRMediaRemoteGetNowPlayingInfo");
 		PrintempsRegisterForNotifications = (MRRegisterForNotificationsFunction)dlsym(RTLD_DEFAULT, "MRMediaRemoteRegisterForNowPlayingNotifications");
 		PrintempsSendCommand = (MRSendCommandFunction)dlsym(RTLD_DEFAULT, "MRMediaRemoteSendCommand");
+		PrintempsSetElapsedTime = (MRSetElapsedTimeFunction)dlsym(RTLD_DEFAULT, "MRMediaRemoteSetElapsedTime");
 	});
 }
 
@@ -76,6 +79,9 @@ static const CGFloat kTransportButtonSize = 28.0;
 static const CGFloat kTransportSpacing = 8.0;
 static const CGFloat kTitleHeight = 20.0;
 static const CGFloat kSubtitleHeight = 18.0;
+// A three point bar is not something a finger can hit, so the gestures get a
+// taller area of their own.
+static const CGFloat kProgressTouchHeight = 18.0;
 
 @interface PrintempsPlayerView ()
 
@@ -87,7 +93,12 @@ static const CGFloat kSubtitleHeight = 18.0;
 @property (nonatomic, retain) UIButton *nextButton;
 @property (nonatomic, retain) UIView *progressTrack;
 @property (nonatomic, retain) UIView *progressFill;
+@property (nonatomic, retain) UIView *progressTouchArea;
 @property (nonatomic, retain) NSTimer *progressTimer;
+
+@property (nonatomic, copy) NSString *currentTitle;
+@property (nonatomic, copy) NSString *currentArtist;
+@property (nonatomic, assign, getter=isScrubbing) BOOL scrubbing;
 
 @property (nonatomic, assign) BOOL playing;
 @property (nonatomic, assign) double elapsedTime;
@@ -116,6 +127,9 @@ static const CGFloat kSubtitleHeight = 18.0;
 	_artworkView.clipsToBounds = YES;
 	_artworkView.layer.cornerRadius = kArtworkCornerRadius;
 	_artworkView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.2];
+	_artworkView.userInteractionEnabled = YES;
+	[_artworkView addGestureRecognizer:[[UILongPressGestureRecognizer alloc]
+		initWithTarget:self action:@selector(handleArtworkLongPress:)]];
 	[self addSubview:_artworkView];
 
 	_titleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:15.0 weight:UIFontWeightSemibold] alpha:1.0];
@@ -134,6 +148,13 @@ static const CGFloat kSubtitleHeight = 18.0;
 	_progressFill = [UIView new];
 	_progressFill.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.9];
 	[_progressTrack addSubview:_progressFill];
+
+	_progressTouchArea = [UIView new];
+	[_progressTouchArea addGestureRecognizer:[[UIPanGestureRecognizer alloc]
+		initWithTarget:self action:@selector(handleScrub:)]];
+	[_progressTouchArea addGestureRecognizer:[[UITapGestureRecognizer alloc]
+		initWithTarget:self action:@selector(handleScrub:)]];
+	[self addSubview:_progressTouchArea];
 
 	return self;
 }
@@ -173,7 +194,7 @@ static const CGFloat kSubtitleHeight = 18.0;
 	[super layoutSubviews];
 
 	CGFloat width = CGRectGetWidth(self.bounds);
-	BOOL rightToLeft = self.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
+	BOOL rightToLeft = [self isRightToLeft];
 
 	self.artworkView.frame = [self flipIfNeeded:CGRectMake(0.0, 0.0, kArtworkSize, kArtworkSize)];
 
@@ -201,14 +222,15 @@ static const CGFloat kSubtitleHeight = 18.0;
 	self.titleLabel.textAlignment = rightToLeft ? NSTextAlignmentRight : NSTextAlignmentLeft;
 	self.subtitleLabel.textAlignment = self.titleLabel.textAlignment;
 
-	CGFloat progressY = CGRectGetHeight(self.bounds) - kProgressHeight;
-	self.progressTrack.frame = CGRectMake(0.0, progressY, width, kProgressHeight);
+	CGFloat height = CGRectGetHeight(self.bounds);
+	self.progressTrack.frame = CGRectMake(0.0, height - kProgressHeight, width, kProgressHeight);
+	self.progressTouchArea.frame = CGRectMake(0.0, height - kProgressTouchHeight, width, kProgressTouchHeight);
 	[self updateProgress];
 }
 
 - (CGRect)flipIfNeeded: (CGRect)frame
 {
-	if (self.effectiveUserInterfaceLayoutDirection != UIUserInterfaceLayoutDirectionRightToLeft) return frame;
+	if (![self isRightToLeft]) return frame;
 
 	frame.origin.x = CGRectGetWidth(self.bounds) - CGRectGetMaxX(frame);
 	return frame;
@@ -280,6 +302,8 @@ static const CGFloat kSubtitleHeight = 18.0;
 	NSString *artist = information[PrintempsInfoKey("kMRMediaRemoteNowPlayingInfoArtist")];
 	NSData *artwork = information[PrintempsInfoKey("kMRMediaRemoteNowPlayingInfoArtworkData")];
 
+	self.currentTitle = title;
+	self.currentArtist = artist;
 	[self setText:title onLabel:self.titleLabel];
 	[self setText:artist onLabel:self.subtitleLabel];
 	if (artwork != nil) self.artworkView.image = [UIImage imageWithData:artwork];
@@ -325,6 +349,8 @@ static const CGFloat kSubtitleHeight = 18.0;
 
 - (void)updateProgress
 {
+	if (self.isScrubbing) return;
+
 	if (self.duration <= 0.0) {
 		self.progressFill.frame = CGRectZero;
 		return;
@@ -335,9 +361,96 @@ static const CGFloat kSubtitleHeight = 18.0;
 		elapsed += -self.elapsedTimestamp.timeIntervalSinceNow * self.playbackRate;
 	}
 
-	double progress = MIN(1.0, MAX(0.0, elapsed / self.duration));
+	[self showProgress:elapsed / self.duration];
+}
+
+- (void)showProgress: (double)progress
+{
 	CGRect track = self.progressTrack.bounds;
-	self.progressFill.frame = CGRectMake(0.0, 0.0, CGRectGetWidth(track) * progress, CGRectGetHeight(track));
+	CGFloat filled = CGRectGetWidth(track) * MIN(1.0, MAX(0.0, progress));
+	CGFloat originX = [self isRightToLeft] ? CGRectGetWidth(track) - filled : 0.0;
+
+	self.progressFill.frame = CGRectMake(originX, 0.0, filled, CGRectGetHeight(track));
+}
+
+- (BOOL)isRightToLeft
+{
+	return self.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
+}
+
+#pragma mark - Scrubbing
+
+- (void)handleScrub: (UIGestureRecognizer *)recognizer
+{
+	if (self.duration <= 0.0) return;
+
+	CGFloat width = CGRectGetWidth(self.progressTrack.bounds);
+	if (width <= 0.0) return;
+
+	double progress = [recognizer locationInView:self.progressTrack].x / width;
+	if ([self isRightToLeft]) progress = 1.0 - progress;
+	progress = MIN(1.0, MAX(0.0, progress));
+
+	BOOL finished = recognizer.state != UIGestureRecognizerStateBegan
+		&& recognizer.state != UIGestureRecognizerStateChanged;
+
+	self.scrubbing = !finished;
+	[self showProgress:progress];
+	if (!finished) return;
+
+	[self seekTo:progress * self.duration];
+}
+
+- (void)seekTo: (double)time
+{
+	if (PrintempsSetElapsedTime == NULL) return;
+
+	PrintempsSetElapsedTime(time);
+
+	// Keep the bar where it was left until the player reports back.
+	self.elapsedTime = time;
+	self.elapsedTimestamp = NSDate.date;
+
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self refresh];
+	});
+}
+
+#pragma mark - Sharing
+
+- (void)handleArtworkLongPress: (UILongPressGestureRecognizer *)recognizer
+{
+	if (recognizer.state != UIGestureRecognizerStateBegan || !self.hasContent) return;
+
+	NSMutableArray<NSString *> *parts = [NSMutableArray array];
+	if (self.currentTitle.length > 0) [parts addObject:self.currentTitle];
+	if (self.currentArtist.length > 0) [parts addObject:self.currentArtist];
+
+	NSMutableArray *items = [NSMutableArray arrayWithObject:
+		[NSString stringWithFormat:@"%@ #nowplaying", [parts componentsJoinedByString:@" - "]]];
+	if (self.artworkView.image != nil) [items addObject:self.artworkView.image];
+
+	UIViewController *presenter = [self presentingViewController];
+	if (presenter == nil) return;
+
+	UIActivityViewController *sheet = [[UIActivityViewController alloc] initWithActivityItems:items
+		applicationActivities:nil];
+	sheet.popoverPresentationController.sourceView = self.artworkView;
+	sheet.popoverPresentationController.sourceRect = self.artworkView.bounds;
+	[presenter presentViewController:sheet animated:YES completion:nil];
+}
+
+- (UIViewController *)presentingViewController
+{
+	for (UIResponder *responder = self; responder != nil; responder = responder.nextResponder) {
+		if (![responder isKindOfClass:UIViewController.class]) continue;
+
+		UIViewController *controller = (UIViewController *)responder;
+		while (controller.presentedViewController != nil) controller = controller.presentedViewController;
+		return controller;
+	}
+
+	return nil;
 }
 
 #pragma mark - Commands
