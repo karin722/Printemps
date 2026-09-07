@@ -41,6 +41,29 @@ static NSString *PrintempsInfoKey(const char *symbol)
 	return value == NULL ? @(symbol) : *value;
 }
 
+#pragma mark - Lock state
+
+// SpringBoard keeps the lock state as a bitmask. Bit 0 says the lock screen is
+// up, which stays set after Face ID has already matched; bit 1 is the one that
+// clears on authentication, sampled across lock, wake, Face ID and unlock.
+static const NSUInteger kLockStateNeedsAuthentication = 1 << 1;
+
+@interface SBLockStateAggregator : NSObject
++ (instancetype)sharedInstance;
+- (NSUInteger)lockState;
+@end
+
+static BOOL PrintempsDeviceIsAuthenticated(void)
+{
+	Class aggregatorClass = NSClassFromString(@"SBLockStateAggregator");
+	if (aggregatorClass == nil) return YES;
+
+	SBLockStateAggregator *aggregator = [aggregatorClass sharedInstance];
+	if (![aggregator respondsToSelector:@selector(lockState)]) return YES;
+
+	return (aggregator.lockState & kLockStateNeedsAuthentication) == 0;
+}
+
 #pragma mark - Labels
 
 // The stock player scrolls long titles with this, so Printemps uses the same
@@ -425,6 +448,11 @@ static const CGFloat kShareWindowLevel = 1234.0;
 {
 	if (recognizer.state != UIGestureRecognizerStateBegan || !self.hasContent) return;
 	if (self.shareWindow != nil) return;
+
+	// Everything the sheet would share is already on the lock screen, but
+	// sharing it is not something somebody who picked the phone up should be
+	// able to start. Face ID having matched is enough; no prompt is raised.
+	if (!PrintempsDeviceIsAuthenticated()) return;
 
 	// Presenting into SpringBoard's own cover sheet controller shows nothing and
 	// takes SpringBoard down with it, so the sheet goes in a window of our own.

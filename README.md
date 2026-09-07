@@ -31,7 +31,8 @@ live activities are left alone.
   the stock widget took
 - Long titles scroll instead of being cut off
 - Drag or tap the progress bar to seek
-- Hold the artwork to share `[title] - [artist] #nowplaying` with the artwork
+- Hold the artwork to share `[title] - [artist] #nowplaying` with the artwork,
+  once the device has authenticated
 
 ## Install
 
